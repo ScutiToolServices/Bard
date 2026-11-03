@@ -163,6 +163,8 @@ class MultiEngine:
 
 
 def build_engine(settings: Settings) -> TtsEngine:
-    """Piper always; Paradee too when its optional `paradee` extra is installed."""
+    """BARD_ENGINE=paradee serves Paradee alone (its four voices); otherwise Piper, plus Paradee when its optional `paradee` extra is installed."""
     paradee = ParadeeEngine(lambda: settings.ffmpeg) if importlib.util.find_spec("paradee") else None
+    if settings.engine == "paradee" and paradee is not None:
+        return paradee
     return MultiEngine(PiperEngine(settings.voices_dir, lambda: settings.ffmpeg), paradee)
