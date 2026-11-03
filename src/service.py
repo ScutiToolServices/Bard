@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Protocol
 
-from src.config import Settings
+from src.config import PARADEE_VOICES, Settings
 from src.contract import DeleteResult, DownloadableVoices, DownloadResult, SpeakResult, VoiceEntry, VoiceList
 from src.engine import TtsEngine
 from src.errors import AdminRequired, DeleteFailed, IdentityRequired, VoiceUnavailable
@@ -87,6 +87,8 @@ class BardService:
             raise AdminRequired("Only users with the bard.delete permission can delete voices. Ask an administrator for it.")
         if name == self._settings.voice:
             raise DeleteFailed(f"{name} is the default voice and cannot be deleted. Change BARD_VOICE first.")
+        if name in PARADEE_VOICES:
+            raise DeleteFailed("Paradee's voices are part of its model file and cannot be deleted one by one.")
         # Unload first: a loaded model can keep its file open, which blocks the delete on Windows.
         await asyncio.to_thread(self._engine.unload, name)
         await self._library.remove(name)

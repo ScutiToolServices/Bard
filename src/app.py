@@ -17,13 +17,13 @@ from starlette.responses import FileResponse, JSONResponse, Response
 from src.admin_gate import AdminGate
 from src.config import Settings
 from src.contract import DeleteResult, DownloadableVoices, DownloadResult, SpeakResult, VoiceList
-from src.engine import PARADEE_VOICES, TtsEngine, build_engine
+from src.engine import TtsEngine, build_engine
 from src.errors import BardError, EngineFailed, IdentityRequired, QuotaExceeded
 from src.identity import owner_from_context
 from src.middleware import InternalTokenMiddleware
 from src.service import AdminCheck, BardService, VoiceSource
 from src.store import AudioStore
-from src.voices import FixedVoices, VoiceLibrary
+from src.voices import VoiceLibrary
 
 INSTRUCTIONS = (
     "Text to speech. Call tool_bard_speak with the text to say; the chat shows a player and a download link. "
@@ -53,8 +53,7 @@ def build_app(
     # shortcut: these HTTP clients live as long as the process and are not closed on shutdown.
     gate = gate or AdminGate(httpx.AsyncClient(), settings.ember_api_url, settings.internal_token, settings.admins)
     if library is None:
-        library = (FixedVoices(PARADEE_VOICES) if settings.engine == "paradee"
-                   else VoiceLibrary(httpx.AsyncClient(follow_redirects=True), settings.voices_dir, settings.staging_dir))
+        library = VoiceLibrary(httpx.AsyncClient(follow_redirects=True), settings.voices_dir, settings.staging_dir)
     # No static admins here: BARD_ADMINS grants installing, never deleting.
     delete_gate = delete_gate or AdminGate(
         httpx.AsyncClient(), settings.ember_api_url, settings.internal_token, permission="bard.delete"

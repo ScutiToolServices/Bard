@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from src.config import Settings
-from src.engine import ParadeeEngine, PiperEngine, build_engine
+from src.engine import MultiEngine, ParadeeEngine, PiperEngine, build_engine
 from src.errors import EngineFailed, VoiceUnavailable
 
 VOICES = Path(__file__).resolve().parent.parent / ".data" / "voices"
@@ -109,9 +109,24 @@ async def test_paradee_synthesize_returns_mp3_and_duration():
     assert result.duration_s == 0.5 and (result.mp3[:3] == b"ID3" or result.mp3[0] == 0xFF)
 
 
-def test_build_engine_follows_the_setting(tmp_path):
-    assert isinstance(build_engine(Settings(data_dir=tmp_path)), PiperEngine)
-    assert isinstance(build_engine(Settings(data_dir=tmp_path, engine="paradee")), ParadeeEngine)
+def test_build_engine_serves_both_engines_whatever_the_setting(tmp_path):
+    assert isinstance(build_engine(Settings(data_dir=tmp_path)), MultiEngine)
+    assert isinstance(build_engine(Settings(data_dir=tmp_path, engine="paradee")), MultiEngine)
+
+
+async def test_multi_engine_lists_both_and_routes_by_voice(tmp_path):
+    (tmp_path / "en_US-a.onnx").write_bytes(b"x")
+    multi = MultiEngine(PiperEngine(tmp_path), ParadeeEngine(model=FakeParadee()))
+    assert multi.voices() == ["en_US-a", "af_heart", "bf_isabella", "am_puck", "bm_fable"]
+    with pytest.raises(VoiceUnavailable):
+        await multi.synthesize("Hello.", "missing")  # unknown voices go to Piper, which refuses them
+    assert MultiEngine(PiperEngine(tmp_path)).voices() == ["en_US-a"]
+
+
+@NEEDS_FFMPEG
+async def test_multi_engine_speaks_a_paradee_voice(tmp_path):
+    multi = MultiEngine(PiperEngine(tmp_path), ParadeeEngine(model=FakeParadee()))
+    assert (await multi.synthesize("Hello.", "af_heart")).duration_s == 0.5
 
 
 @NEEDS_FFMPEG
