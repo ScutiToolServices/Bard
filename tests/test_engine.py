@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from src.engine import PiperEngine
+from src.config import Settings
+from src.engine import ParadeeEngine, PiperEngine, build_engine
 from src.errors import EngineFailed, VoiceUnavailable
 
 VOICES = Path(__file__).resolve().parent.parent / ".data" / "voices"
@@ -56,3 +57,65 @@ async def test_real_synthesis_produces_speech():
     result = await PiperEngine(VOICES).synthesize("Hello from Bard.", "en_US-lessac-medium")
     assert result.duration_s > 0.5
     assert len(result.mp3) > 3000
+
+
+class FakeParadee:
+    """Stands in for the Paradee model: half a second of silence at 24 kHz."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, text, voice="af_heart"):
+        import numpy
+
+        self.calls.append((text, voice))
+        return numpy.zeros(12000, dtype="float32")
+
+
+def test_paradee_lists_its_four_voices_and_unload_does_nothing():
+    engine = ParadeeEngine(model=FakeParadee())
+    assert engine.voices() == ["af_heart", "bf_isabella", "am_puck", "bm_fable"]
+    engine.unload("af_heart")
+    assert engine.voices()[0] == "af_heart"
+
+
+async def test_paradee_unknown_voice_is_voice_unavailable():
+    with pytest.raises(VoiceUnavailable):
+        await ParadeeEngine(model=FakeParadee()).synthesize("hi", "en_US-lessac-medium")
+
+
+async def test_paradee_wav_is_24khz_and_as_long_as_the_audio():
+    model = FakeParadee()
+    wav, seconds = await __import__("asyncio").to_thread(ParadeeEngine(model=model)._wav, "Hello.", "bm_fable")
+    assert seconds == 0.5 and model.calls == [("Hello.", "bm_fable")]
+    with wave.open(io.BytesIO(wav)) as reader:
+        assert (reader.getframerate(), reader.getnchannels(), reader.getnframes()) == (24000, 1, 12000)
+
+
+async def test_paradee_empty_audio_is_engine_failed():
+    class Silent(FakeParadee):
+        def __call__(self, text, voice="af_heart"):
+            import numpy
+
+            return numpy.zeros(0, dtype="float32")
+
+    with pytest.raises(EngineFailed, match="No speech"):
+        await ParadeeEngine(model=Silent()).synthesize("...", "af_heart")
+
+
+@NEEDS_FFMPEG
+async def test_paradee_synthesize_returns_mp3_and_duration():
+    result = await ParadeeEngine(model=FakeParadee()).synthesize("Hello.", "af_heart")
+    assert result.duration_s == 0.5 and (result.mp3[:3] == b"ID3" or result.mp3[0] == 0xFF)
+
+
+def test_build_engine_follows_the_setting(tmp_path):
+    assert isinstance(build_engine(Settings(data_dir=tmp_path)), PiperEngine)
+    assert isinstance(build_engine(Settings(data_dir=tmp_path, engine="paradee")), ParadeeEngine)
+
+
+@NEEDS_FFMPEG
+async def test_real_paradee_synthesis_produces_speech():
+    pytest.importorskip("paradee")
+    result = await ParadeeEngine().synthesize("Hello from Bard.", "bf_isabella")
+    assert result.duration_s > 0.5 and len(result.mp3) > 3000

@@ -103,3 +103,39 @@ def test_voices_lists_only_installed_without_a_default(client):
     response = client.get("/api/voices", headers=ANN)
     assert response.status_code == 200
     assert response.json() == {"voices": ["v1", "v2"]}
+
+
+def test_paradee_setting_serves_its_four_voices_and_speaks(tmp_path):
+    import shutil
+
+    from src.engine import ParadeeEngine
+    from tests.test_engine import FakeParadee
+
+    settings = Settings(data_dir=tmp_path, internal_token="tok", engine="paradee", voice="af_heart")
+    client = TestClient(build_app(settings, engine=ParadeeEngine(model=FakeParadee())))
+    assert client.get("/api/voices", headers=BOB).json() == {"voices": ["af_heart", "bf_isabella", "am_puck", "bm_fable"]}
+    assert client.post("/api/speak", json={"text": "Hello.", "voice": "en_US-lessac-medium"}, headers=BOB).status_code == 400
+    if shutil.which("ffmpeg"):
+        reply = client.post("/api/speak", json={"text": "Hello.", "voice": "bm_fable"}, headers=BOB)
+        assert reply.status_code == 200 and reply.json()["voice"] == "bm_fable" and reply.json()["duration_s"] == 0.5
+
+
+def test_paradee_setting_replaces_the_voice_library_with_fixed_voices(tmp_path):
+    from src.errors import DeleteFailed
+    from src.service import BardService
+    from tests.fakes import FakeGate
+    import asyncio
+
+    from src.engine import ParadeeEngine
+    from src.voices import FixedVoices
+    from src.engine import PARADEE_VOICES
+    from tests.test_engine import FakeParadee
+
+    settings = Settings(data_dir=tmp_path, internal_token="tok", engine="paradee", voice="af_heart")
+    store = AudioStore(settings.audio_dir, settings.ttl_seconds, settings.quota_bytes)
+    service = BardService(ParadeeEngine(model=FakeParadee()), store, settings, FixedVoices(PARADEE_VOICES),
+                          FakeGate(("ann",)), FakeGate(("ann",)))
+    listed = asyncio.run(service.list_downloadable("ann", "en_GB", None))
+    assert [v.voice for v in listed.voices] == ["bf_isabella", "bm_fable"]
+    with pytest.raises(DeleteFailed):
+        asyncio.run(service.delete_voice("ann", "bm_fable"))

@@ -5,16 +5,17 @@ Text-to-speech MCP server for Citadel and Ember. A standalone service on port 80
 ## Agent instructions
 This file is the one instruction file for every coding agent; `CLAUDE.md` only imports it (`@AGENTS.md`). Edit this file, never `CLAUDE.md`.
 
-## Commands (from this folder, venv `.venv_bard`)
-- Install: `python -m venv .venv_bard`, then `.venv_bard/Scripts/python.exe -m pip install -e ".[dev]"`
-- Voice: `.venv_bard/Scripts/python.exe -m piper.download_voices en_US-lessac-medium --download-dir .data/voices`
-- Test: `.venv_bard/Scripts/python.exe -m pytest -q`
-- Run: `.venv_bard/Scripts/python.exe -m src.run`
+## Commands (from this folder, venv `.venv`, managed by uv)
+- Install: `uv sync` (`python -m pip install uv` if missing; on this machine set `UV_CACHE_DIR=D:/User/.uv-cache`)
+- Voice: `uv run python -m piper.download_voices en_US-lessac-medium --download-dir .data/voices`
+- Test: `uv run pytest -q`
+- Run: `uv run python -m src.run`
 
 ## Rules
 - Never read or print `.env`.
 - Logic lives in `service.py`, `engine.py`, `store.py`; `app.py` is glue. Tools never call an AI.
-- Every blocking call (Piper, file IO) runs through `asyncio.to_thread`; ffmpeg runs as an asyncio subprocess.
+- `BARD_ENGINE` (`piper` or `paradee`) picks the `TtsEngine` (`build_engine`); Paradee is the optional `paradee` extra, imported only when its first text is spoken. Paradee's voices are fixed (`FixedVoices` replaces the catalog), so download and delete refuse.
+- Every blocking call (Piper, Paradee, file IO) runs through `asyncio.to_thread`; ffmpeg runs as an asyncio subprocess.
 - `INTERNAL_API_TOKEN` guards `/mcp` and `/api/*`; an exposed bind without it must refuse to start.
 - Result models end with `message`. Error messages never contain paths.
 - The owner key is the username from `_meta.requester`.

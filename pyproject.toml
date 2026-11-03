@@ -13,11 +13,22 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# BARD_ENGINE=paradee. Install with: uv sync --extra paradee
+paradee = [
+    "paradee @ https://github.com/sahilmahendrakar/paradee/archive/refs/tags/v1.2.tar.gz",
+    # misaki would download this at run time with pip, which a uv environment and the image do not have
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+]
+
+[dependency-groups]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]

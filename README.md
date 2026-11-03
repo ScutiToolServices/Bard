@@ -1,6 +1,6 @@
 # Bard
 
-Text to speech for Ember. Piper synthesizes an English voice on the CPU, ffmpeg encodes MP3, and Armory proxies the tools as the `bard` extension. Ember plays the result in chat through `GET /api/bard/audio/{file_id}`.
+Text to speech for Ember. Piper or Paradee (`BARD_ENGINE`) synthesizes an English voice on the CPU, ffmpeg encodes MP3, and Armory proxies the tools as the `bard` extension. Ember plays the result in chat through `GET /api/bard/audio/{file_id}`.
 
 ## Tools
 
@@ -20,12 +20,25 @@ Deleting a voice needs the separate `bard.delete` permission, granted the same w
 
 Downloads come from the Piper voice catalog on Hugging Face: a name must be in the catalog, files are staged, checked against the catalog's size and MD5 and then moved into `.data/voices/`. One voice, `pt_PT-tugão-medium`, has a non-ASCII name and cannot be installed this way; use `python -m piper.download_voices` for it.
 
+## Engines
+
+`BARD_ENGINE` picks the voice engine at start. Both run in the Bard process; there is no extra server.
+
+| | `piper` (default) | `paradee` |
+| --- | --- | --- |
+| Voices | Any voice from the Piper catalog, installed one by one (`tool_bard_downloadVoice`). | Four fixed voices in one 8.5 MB model: `af_heart` (default), `bf_isabella`, `am_puck`, `bm_fable`. |
+| Admin tools | List, download and delete voices as described above. | `tool_bard_listDownloadable` lists the four (all installed); `tool_bard_downloadVoice` and `tool_bard_deleteVoice` refuse, since the voices are part of the model. |
+| Install | `uv sync`, then download a voice (Setup step 2). | `uv sync --extra paradee`; the model downloads from Hugging Face on first use (into `HF_HOME`, `/data/hf` in Docker). |
+| Measured here | About 24x real time, 280 MB. | About 36x real time, 600 MB. |
+
+`BARD_VOICE` must name a voice of the chosen engine; Bard refuses to start when a Paradee setup names a Piper voice. Voice names differ between the engines, so cached audio from one engine is never served for the other. For Docker set `BARD_ENGINE=paradee` in `.env`: the build then installs the extra dependencies (the image is about 2.4 GB, against 1.5 GB for Piper).
+
 ## Setup
 
-1. `python -m venv .venv_bard` and `.venv_bard/Scripts/python.exe -m pip install -e ".[dev]"`
-2. Download the voice: `.venv_bard/Scripts/python.exe -m piper.download_voices en_US-lessac-medium --download-dir .data/voices`
+1. `uv sync` (`python -m pip install uv` first if uv is missing)
+2. Piper only: download the voice: `uv run python -m piper.download_voices en_US-lessac-medium --download-dir .data/voices`. For Paradee run `uv sync --extra paradee` instead and set `BARD_ENGINE=paradee`.
 3. Copy `.env.example` to `.env` and set `INTERNAL_API_TOKEN` to the value Armory and ember_api use.
-4. `.venv_bard/Scripts/python.exe -m src.run`, then start Armory (it connects to Bard at startup, so Bard goes first).
+4. `uv run python -m src.run`, then start Armory (it connects to Bard at startup, so Bard goes first).
 5. Register it in Armory's `configs/config_extensions.json` (see `config_extensions.json.example`, entry `bard`) and set `bard_url` in ember_api's `configs/config_app.json` if Bard is not on `http://127.0.0.1:8090`.
 
 ## Configuration
@@ -35,7 +48,8 @@ Downloads come from the Piper voice catalog on Hugging Face: a name must be in t
 | `INTERNAL_API_TOKEN` | empty | Shared token for `/mcp` and `/api/*`. Required when `BARD_HOST` is not loopback. |
 | `BARD_HOST` / `BARD_PORT` | `127.0.0.1` / `8090` | Listen address. |
 | `BARD_DATA_DIR` | `.data` | Holds `voices/` and `audio/` (both gitignored). |
-| `BARD_VOICE` | `en_US-lessac-medium` | Default voice. |
+| `BARD_ENGINE` | `piper` | `piper` or `paradee`; see Engines. |
+| `BARD_VOICE` | `en_US-lessac-medium` (`af_heart` for Paradee) | Default voice. |
 | `BARD_MAX_CHARS` | `5000` | Longest text accepted after Markdown is stripped. |
 | `BARD_TTL_HOURS` | `24` | How long audio is kept. |
 | `BARD_QUOTA_MB` | `200` | Audio storage per user. |

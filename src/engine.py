@@ -1,4 +1,4 @@
-"""Text to MP3. Piper is CPU-bound and blocking, so it runs on a worker thread;
+"""Text to MP3. Piper and Paradee are CPU-bound and blocking, so they run on a worker thread;
 ffmpeg runs as an asyncio subprocess."""
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from src.config import PARADEE_VOICES, Settings
 from src.errors import EngineFailed, VoiceUnavailable
 
 
@@ -26,6 +27,21 @@ class TtsEngine(Protocol):
     def unload(self, name: str) -> None: ...
 
     async def synthesize(self, text: str, voice: str) -> Synthesis: ...
+
+
+async def encode_mp3(wav: bytes, ffmpeg: str) -> bytes:
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            ffmpeg, "-loglevel", "error", "-f", "wav", "-i", "pipe:0",
+            "-codec:a", "libmp3lame", "-q:a", "4", "-f", "mp3", "pipe:1",
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+    except FileNotFoundError as error:
+        raise EngineFailed("ffmpeg was not found on the Bard host.") from error
+    out, err = await proc.communicate(wav)
+    if proc.returncode != 0:
+        raise EngineFailed(f"ffmpeg could not encode the audio: {err.decode('utf-8', 'replace').strip()[:200]}")
+    return out
 
 
 class PiperEngine:
@@ -63,19 +79,68 @@ class PiperEngine:
         return buf.getvalue(), seconds
 
     async def _mp3(self, wav: bytes) -> bytes:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                self._ffmpeg, "-loglevel", "error", "-f", "wav", "-i", "pipe:0",
-                "-codec:a", "libmp3lame", "-q:a", "4", "-f", "mp3", "pipe:1",
-                stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            )
-        except FileNotFoundError as error:
-            raise EngineFailed("ffmpeg was not found on the Bard host.") from error
-        out, err = await proc.communicate(wav)
-        if proc.returncode != 0:
-            raise EngineFailed(f"ffmpeg could not encode the audio: {err.decode('utf-8', 'replace').strip()[:200]}")
-        return out
+        return await encode_mp3(wav, self._ffmpeg)
 
     async def synthesize(self, text: str, voice: str) -> Synthesis:
         wav, seconds = await asyncio.to_thread(self._wav, text, voice)
         return Synthesis(await self._mp3(wav), seconds)
+
+
+PARADEE_RATE = 24000
+
+
+class ParadeeEngine:
+    """Paradee (an 8M-parameter model distilled from Kokoro) run in this process. Its four voices live in one
+    model file, so they cannot be installed or deleted one by one. The model downloads from Hugging Face on first use.
+    `model` is injectable for tests: a callable `(text, voice=...)` returning float audio at 24 kHz."""
+
+    def __init__(self, ffmpeg: str = "ffmpeg", version: str = "1.2", model: object | None = None) -> None:
+        self._ffmpeg = ffmpeg
+        self._version = version
+        self._model_obj = model
+        self._load_lock = threading.Lock()
+
+    def voices(self) -> list[str]:
+        return list(PARADEE_VOICES)
+
+    def unload(self, name: str) -> None:
+        """Nothing to drop: the voices are part of the one loaded model."""
+
+    def _model(self):
+        with self._load_lock:
+            if self._model_obj is None:
+                from paradee import Paradee  # heavy import, only when the first text is spoken
+
+                model = Paradee(version=self._version, threads=1)
+                for voice in PARADEE_VOICES[:2]:
+                    model("Warm up.", voice=voice)  # builds the American and British phonemizers now
+                self._model_obj = model
+            return self._model_obj
+
+    def _wav(self, text: str, name: str) -> tuple[bytes, float]:
+        import numpy
+
+        audio = self._model()(text, voice=name)
+        if len(audio) == 0:
+            raise EngineFailed("No speech could be made from that text.")
+        pcm = (numpy.clip(audio, -1.0, 1.0) * 32767).astype("<i2")
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(PARADEE_RATE)
+            wav.writeframes(pcm.tobytes())
+        return buf.getvalue(), len(pcm) / PARADEE_RATE
+
+    async def synthesize(self, text: str, voice: str) -> Synthesis:
+        if voice not in PARADEE_VOICES:
+            raise VoiceUnavailable(f"Voice '{voice}' is not installed.")
+        wav, seconds = await asyncio.to_thread(self._wav, text, voice)
+        return Synthesis(await encode_mp3(wav, self._ffmpeg), seconds)
+
+
+def build_engine(settings: Settings) -> TtsEngine:
+    """The engine BARD_ENGINE names."""
+    if settings.engine == "paradee":
+        return ParadeeEngine(settings.ffmpeg)
+    return PiperEngine(settings.voices_dir, settings.ffmpeg)

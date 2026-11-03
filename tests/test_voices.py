@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from src.errors import CatalogUnavailable, DeleteFailed, DownloadFailed, VoiceAlreadyInstalled, VoiceNotInCatalog, VoiceUnavailable
-from src.voices import VoiceLibrary
+from src.voices import FixedVoices, VoiceLibrary
 
 MODEL = b"model-bytes" * 100
 CONFIG = b'{"audio": {"sample_rate": 22050}}'
@@ -229,3 +229,15 @@ async def test_two_installs_of_the_same_voice_download_it_once(library, hub):
     results = await asyncio.gather(library.install("en_GB-alba-medium"), library.install("en_GB-alba-medium"), return_exceptions=True)
     assert sum(isinstance(r, VoiceAlreadyInstalled) for r in results) == 1
     assert len([p for p in hub.requests if p.endswith(".onnx")]) == 1
+
+
+async def test_fixed_voices_list_filter_and_refuse_changes():
+    fixed = FixedVoices(("af_heart", "bf_isabella"))
+    assert [v.voice for v in await fixed.list(None, None)] == ["af_heart", "bf_isabella"]
+    assert all(v.installed for v in await fixed.list(None, None))
+    assert [v.voice for v in await fixed.list("en_GB", None)] == ["bf_isabella"]
+    assert await fixed.list(None, "high") == []
+    with pytest.raises(VoiceAlreadyInstalled):
+        await fixed.install("af_heart")
+    with pytest.raises(DeleteFailed, match="cannot be deleted"):
+        await fixed.remove("bf_isabella")

@@ -1,7 +1,7 @@
 .git
 .data
 .env
-.venv_bard
+.venv
 __pycache__
 .pytest_cache
 tests
