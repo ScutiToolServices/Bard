@@ -1,3 +1,4 @@
+import importlib.util
 import io
 import shutil
 import wave
@@ -109,9 +110,13 @@ async def test_paradee_synthesize_returns_mp3_and_duration():
     assert result.duration_s == 0.5 and (result.mp3[:3] == b"ID3" or result.mp3[0] == 0xFF)
 
 
-def test_build_engine_serves_both_engines_whatever_the_setting(tmp_path):
+def test_build_engine_lists_paradee_alone_when_it_is_the_chosen_engine(tmp_path):
     assert isinstance(build_engine(Settings(data_dir=tmp_path)), MultiEngine)
-    assert isinstance(build_engine(Settings(data_dir=tmp_path, engine="paradee")), MultiEngine)
+    chosen = build_engine(Settings(data_dir=tmp_path, engine="paradee"))
+    if importlib.util.find_spec("paradee"):
+        assert isinstance(chosen, ParadeeEngine) and "en_US-lessac-medium" not in chosen.voices()
+    else:
+        assert isinstance(chosen, MultiEngine)
 
 
 async def test_multi_engine_lists_both_and_routes_by_voice(tmp_path):

@@ -14,7 +14,7 @@ This file is the one instruction file for every coding agent; `CLAUDE.md` only i
 ## Rules
 - Never read or print `.env`.
 - Logic lives in `service.py`, `engine.py`, `store.py`; `app.py` is glue. Tools never call an AI.
-- `build_engine` returns a `MultiEngine`: Piper always, Paradee too when the optional `paradee` extra is installed (imported only when its first text is spoken). The request's `voice` picks the engine. `BARD_ENGINE` only picks the default voice's engine. Paradee's voices are fixed, so download and delete of them refuse.
+- `build_engine` returns a `MultiEngine`: Piper always, Paradee too when the optional `paradee` extra is installed (imported only when its first text is spoken). The request's `voice` picks the engine. With `BARD_ENGINE=paradee` and the extra installed it returns `ParadeeEngine` alone, so only Paradee's voices are listed; otherwise `BARD_ENGINE` only picks the default voice's engine. Paradee's voices are fixed, so download and delete of them refuse.
 - Every blocking call (Piper, Paradee, file IO) runs through `asyncio.to_thread`; ffmpeg runs as an asyncio subprocess.
 - `INTERNAL_API_TOKEN` guards `/mcp` and `/api/*`; an exposed bind without it must refuse to start.
 - Result models end with `message`. Error messages never contain paths.

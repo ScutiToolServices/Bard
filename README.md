@@ -22,7 +22,7 @@ Downloads come from the Piper voice catalog on Hugging Face: a name must be in t
 
 ## Engines
 
-Both engines run in the Bard process and are chosen per request: the `voice` of a request picks the engine, so `tool_bard_listVoices` and Ember's voice menu list Piper voices and (when the `paradee` extra is installed) Paradee's four. `BARD_ENGINE` only sets which engine the default `BARD_VOICE` belongs to.
+With `BARD_ENGINE=paradee` (and the `paradee` extra installed) Bard serves Paradee alone, so `tool_bard_listVoices` and Ember's voice menu list only its four voices. With `piper` both engines run in the Bard process and are chosen per request: the `voice` picks the engine, and the list holds Piper voices plus Paradee's four when the extra is installed.
 
 | | `piper` (default) | `paradee` |
 | --- | --- | --- |
