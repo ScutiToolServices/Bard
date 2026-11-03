@@ -139,3 +139,43 @@ def test_paradee_setting_replaces_the_voice_library_with_fixed_voices(tmp_path):
     assert [v.voice for v in listed.voices] == ["bf_isabella", "bm_fable"]
     with pytest.raises(DeleteFailed):
         asyncio.run(service.delete_voice("ann", "bm_fable"))
+
+
+@pytest.fixture
+def admin_client(tmp_path):
+    settings = Settings(data_dir=tmp_path, internal_token="tok", voice="v1", admin_password="pw")
+    return TestClient(build_app(settings, engine=FakeEngine())), tmp_path
+
+
+def test_admin_is_off_without_a_password(client):
+    assert client.get("/admin/settings").status_code in (404, 405)
+
+
+def test_admin_needs_the_password(admin_client):
+    client, _ = admin_client
+    assert client.get("/admin/settings").status_code == 401
+    assert client.put("/admin/settings", json={"values": {"max_chars": 10}}, headers={"X-Admin-Password": "x"}).status_code == 401
+
+
+def test_admin_saves_and_the_service_uses_it(admin_client):
+    client, _ = admin_client
+    auth = {"X-Admin-Password": "pw"}
+    rows = {r["key"]: r for r in client.get("/admin/settings", headers=auth).json()["settings"]}
+    assert rows["max_chars"]["value"] == 5000 and rows["voice"]["value"] == "v1"
+    saved = client.put("/admin/settings", json={"values": {"max_chars": 10}}, headers=auth)
+    assert saved.status_code == 200
+    spoken = client.post("/api/speak", json={"text": "x" * 50}, headers=BOB)
+    assert spoken.status_code == 400  # now over the 10 character limit
+
+
+def test_admin_refuses_bad_values_and_unknown_voices(admin_client):
+    client, _ = admin_client
+    auth = {"X-Admin-Password": "pw"}
+    assert client.put("/admin/settings", json={"values": {"max_chars": 0}}, headers=auth).status_code == 422
+    assert client.put("/admin/settings", json={"values": {"voice": "nope"}}, headers=auth).status_code == 422
+    assert client.put("/admin/settings", json={"oops": 1}, headers=auth).status_code == 422
+
+
+def test_admin_page_is_served_without_the_internal_token(admin_client):
+    client, _ = admin_client
+    assert client.get("/admin/").status_code == 200

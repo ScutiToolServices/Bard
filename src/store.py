@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.errors import QuotaExceeded
+from src.runtime import as_getter
 
 _ID = re.compile(r"^[0-9a-f]{32}$")
 
@@ -33,13 +34,13 @@ class AudioStore:
     def __init__(
         self,
         root: Path,
-        ttl_seconds: int,
-        quota_bytes: int,
+        ttl_seconds: int | Callable[[], int],
+        quota_bytes: int | Callable[[], int],
         clock: Callable[[], float] = time.time,
     ) -> None:
         self._root = Path(root)
-        self._ttl = ttl_seconds
-        self._quota = quota_bytes
+        self._ttl = as_getter(ttl_seconds)
+        self._quota = as_getter(quota_bytes)
         self._clock = clock
 
     @staticmethod
@@ -50,7 +51,7 @@ class AudioStore:
         return self._root / hashlib.sha256(owner.encode("utf-8")).hexdigest()[:16]
 
     def _expired(self, stored: StoredAudio) -> bool:
-        return stored.created_at + self._ttl <= self._clock()
+        return stored.created_at + self._ttl() <=self._clock()
 
     @staticmethod
     def _read(owner_dir: Path, file_id: str) -> StoredAudio | None:
@@ -105,7 +106,7 @@ class AudioStore:
         owner_dir.mkdir(parents=True, exist_ok=True)
         self._sweep_dir(owner_dir)
         used = sum(p.stat().st_size for p in owner_dir.glob("*.mp3"))
-        if used + len(mp3) > self._quota:
+        if used + len(mp3) > self._quota():
             raise QuotaExceeded("Your audio storage is full. Wait for older audio to expire and try again.")
         created = self._clock()
         meta = {"voice": voice, "duration_s": duration_s, "created_at": created}
