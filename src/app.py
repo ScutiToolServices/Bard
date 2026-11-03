@@ -66,12 +66,14 @@ def build_app(
     store = AudioStore(base.audio_dir, lambda: settings.ttl_seconds, lambda: settings.quota_bytes)
     store.sweep()
     # shortcut: these HTTP clients live as long as the process and are not closed on shutdown.
-    gate = gate or AdminGate(httpx.AsyncClient(), settings.ember_api_url, settings.internal_token, settings.admins)
+    gate = gate or AdminGate(
+        httpx.AsyncClient(), lambda: settings.ember_api_url, settings.internal_token, lambda: settings.admins
+    )
     if library is None:
         library = VoiceLibrary(httpx.AsyncClient(follow_redirects=True), settings.voices_dir, settings.staging_dir)
     # No static admins here: BARD_ADMINS grants installing, never deleting.
     delete_gate = delete_gate or AdminGate(
-        httpx.AsyncClient(), settings.ember_api_url, settings.internal_token, permission="bard.delete"
+        httpx.AsyncClient(), lambda: settings.ember_api_url, settings.internal_token, permission="bard.delete"
     )
     service = BardService(engine, store, settings, library, gate, delete_gate)
     mcp = FastMCP(name="bard", instructions=INSTRUCTIONS, host=settings.host, port=settings.port)

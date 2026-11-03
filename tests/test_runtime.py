@@ -48,3 +48,13 @@ def test_live_settings_follow_a_saved_change(tmp_path):
     config.set({"ttl_hours": 2, "quota_mb": 5})
     assert settings.ttl_seconds == 7200
     assert settings.quota_bytes == 5 * 1024 * 1024
+
+
+def test_admins_and_ember_url_are_live_and_normalised(tmp_path):
+    base = Settings(data_dir=tmp_path, admin_password="pw")
+    config = make_config(base)
+    settings = live(base, config)
+    assert settings.admins == frozenset()
+    config.set({"admins": " Ann, bob ,", "ember_api_url": "http://e:1/"})
+    assert settings.admins == frozenset({"ann", "bob"})
+    assert settings.ember_api_url == "http://e:1"
