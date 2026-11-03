@@ -18,7 +18,7 @@ services:
       BARD_ADMIN_PASSWORD: ${BARD_ADMIN_PASSWORD:-}
       EMBER_API_URL: http://ember_api:8030
     ports:
-      - "127.0.0.1:${BARD_PORT:-8090}:8090"
+      - "${BARD_BIND:-0.0.0.0}:${BARD_PORT:-8090}:8090"
     volumes:
       - bard_data:/data
     healthcheck:
