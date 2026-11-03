@@ -4,6 +4,7 @@ ffmpeg runs as an asyncio subprocess."""
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import io
 import threading
 import wave
@@ -139,8 +140,28 @@ class ParadeeEngine:
         return Synthesis(await encode_mp3(wav, self._ffmpeg), seconds)
 
 
+class MultiEngine:
+    """Routes each request to the engine that owns its voice, so the caller picks the engine by picking a voice.
+    Voice names never overlap (Paradee's are fixed and lack the Piper `lang_REGION-name-quality` shape)."""
+
+    def __init__(self, piper: TtsEngine, paradee: TtsEngine | None = None) -> None:
+        self._piper = piper
+        self._paradee = paradee
+
+    def _owner(self, voice: str) -> TtsEngine:
+        return self._paradee if self._paradee is not None and voice in PARADEE_VOICES else self._piper
+
+    def voices(self) -> list[str]:
+        return self._piper.voices() + (self._paradee.voices() if self._paradee is not None else [])
+
+    def unload(self, name: str) -> None:
+        self._owner(name).unload(name)
+
+    async def synthesize(self, text: str, voice: str) -> Synthesis:
+        return await self._owner(voice).synthesize(text, voice)
+
+
 def build_engine(settings: Settings) -> TtsEngine:
-    """The engine BARD_ENGINE names."""
-    if settings.engine == "paradee":
-        return ParadeeEngine(settings.ffmpeg)
-    return PiperEngine(settings.voices_dir, settings.ffmpeg)
+    """Piper always; Paradee too when its optional `paradee` extra is installed."""
+    paradee = ParadeeEngine(settings.ffmpeg) if importlib.util.find_spec("paradee") else None
+    return MultiEngine(PiperEngine(settings.voices_dir, settings.ffmpeg), paradee)
