@@ -29,6 +29,8 @@ class Settings:
     # (lowercase) that count as admins even when ember_api cannot be reached.
     ember_api_url: str = "http://127.0.0.1:8030"
     admins: frozenset[str] = frozenset()
+    # Unlocks /admin/ (settings page). Empty = the page is off and settings stay as the environment set them.
+    admin_password: str = ""
 
     @property
     def voices_dir(self) -> Path:
@@ -76,4 +78,5 @@ def load_settings() -> Settings:
         max_concurrent=int(env("BARD_MAX_CONCURRENT", "1")),
         ember_api_url=env("EMBER_API_URL", "http://127.0.0.1:8030").rstrip("/"),
         admins=frozenset(name.strip().lower() for name in env("BARD_ADMINS", "").split(",") if name.strip()),
+        admin_password=env("BARD_ADMIN_PASSWORD", ""),
     )

@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
+import os
+from pathlib import Path
 from typing import Annotated, Literal
 
 import httpx
@@ -13,14 +16,18 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, Response
+from starlette.routing import Mount
+from starlette.staticfiles import StaticFiles
 
 from src.admin_gate import AdminGate
-from src.config import Settings
+from src.config import PROJECT_DIR, Settings
 from src.contract import DeleteResult, DownloadableVoices, DownloadResult, SpeakResult, VoiceList
 from src.engine import TtsEngine, build_engine
 from src.errors import BardError, EngineFailed, IdentityRequired, QuotaExceeded
 from src.identity import owner_from_context
 from src.middleware import InternalTokenMiddleware
+from src.options import live, make_config
+from src.runtime import Config
 from src.service import AdminCheck, BardService, VoiceSource
 from src.store import AudioStore
 from src.voices import VoiceLibrary
@@ -31,6 +38,9 @@ INSTRUCTIONS = (
     "tool_bard_listDownloadable and tool_bard_downloadVoice add new voices and are for Bard admins only. "
     "tool_bard_deleteVoice removes one and needs the separate bard.delete permission."
 )
+
+
+WEB_DIR = Path(os.environ.get("BARD_WEB_DIR") or PROJECT_DIR / "web")
 
 
 class SpeakIn(BaseModel):
@@ -46,9 +56,14 @@ def build_app(
     gate: AdminCheck | None = None,
     library: VoiceSource | None = None,
     delete_gate: AdminCheck | None = None,
+    config: Config | None = None,
 ) -> Starlette:
-    engine = engine or build_engine(settings)
-    store = AudioStore(settings.audio_dir, settings.ttl_seconds, settings.quota_bytes)
+    """`config` (default: from BARD_ADMIN_PASSWORD, see options.make_config) makes the options in options.py
+    changeable on /admin/ while running; without it they stay as the environment set them."""
+    config = config if config is not None else make_config(settings)
+    base, settings = settings, live(settings, config)
+    engine = engine or build_engine(base)
+    store = AudioStore(base.audio_dir, lambda: settings.ttl_seconds, lambda: settings.quota_bytes)
     store.sweep()
     # shortcut: these HTTP clients live as long as the process and are not closed on shutdown.
     gate = gate or AdminGate(httpx.AsyncClient(), settings.ember_api_url, settings.internal_token, settings.admins)
@@ -176,6 +191,30 @@ def build_app(
         result = await service.list_voices()
         return JSONResponse({"voices": result.voices})
 
+    if config is not None:
+        @mcp.custom_route("/admin/settings", methods=["GET", "PUT"])
+        async def admin_settings(request: Request) -> Response:
+            given = request.headers.get("x-admin-password", "").encode("utf-8")
+            if not hmac.compare_digest(given, base.admin_password.encode("utf-8")):
+                return JSONResponse({"detail": "Wrong admin password."}, status_code=401)
+            if request.method == "PUT":
+                try:
+                    values = (await request.json())["values"]
+                    if not isinstance(values, dict):
+                        raise TypeError
+                except (ValueError, KeyError, TypeError):
+                    return JSONResponse({"detail": "Send {\"values\": {...}}."}, status_code=422)
+                try:
+                    voice = values.get("voice")
+                    if isinstance(voice, str) and voice.strip() not in await asyncio.to_thread(engine.voices):
+                        raise ValueError(f"Voice '{voice.strip()}' is not installed.")
+                    await asyncio.to_thread(config.set, values)
+                except ValueError as error:
+                    return JSONResponse({"detail": str(error)}, status_code=422)
+            return JSONResponse({"service": "Bard", "settings": config.describe()})
+
     app = mcp.streamable_http_app()
+    if config is not None and WEB_DIR.is_dir():
+        app.router.routes.append(Mount("/admin", StaticFiles(directory=WEB_DIR, html=True)))
     app.add_middleware(InternalTokenMiddleware, token=settings.internal_token)
     return app

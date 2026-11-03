@@ -2,7 +2,7 @@
 FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /usr/local/bin/uv
 ARG BARD_ENGINE=piper
-ENV BARD_ENGINE=${BARD_ENGINE} HF_HOME=/data/hf PYTHONUNBUFFERED=1 UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/opt/venv PATH="/opt/venv/bin:$PATH" BARD_DATA_DIR=/data BARD_HOST=0.0.0.0
+ENV BARD_ENGINE=${BARD_ENGINE} HF_HOME=/data/hf PYTHONUNBUFFERED=1 UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/opt/venv PATH="/opt/venv/bin:$PATH" BARD_DATA_DIR=/data BARD_HOST=0.0.0.0 BARD_WEB_DIR=/app/web
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project $([ "$BARD_ENGINE" = paradee ] && echo --extra paradee)
 COPY src ./src
+COPY web ./web
 RUN uv sync --frozen --no-dev --no-editable $([ "$BARD_ENGINE" = paradee ] && echo --extra paradee)
 
 EXPOSE 8090
