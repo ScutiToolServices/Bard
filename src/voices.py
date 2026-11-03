@@ -65,6 +65,27 @@ def _parse(raw: object) -> dict[str, _Voice]:
     return voices
 
 
+class FixedVoices:
+    """The voice source for an engine whose voices are part of its model (Paradee): nothing to download or delete."""
+
+    def __init__(self, voices: tuple[str, ...]) -> None:
+        self._voices = voices
+
+    async def list(self, language: str | None, quality: str | None) -> list[VoiceEntry]:
+        # Paradee's voice names start with the language: af_/am_ American, bf_/bm_ British.
+        entries = [
+            VoiceEntry(voice=name, language="en_US" if name[0] == "a" else "en_GB", quality="fixed", size_mb=0.0, installed=True)
+            for name in self._voices
+        ]
+        return [e for e in entries if (not language or e.language.startswith(language)) and (not quality or e.quality == quality)]
+
+    async def install(self, name: str) -> VoiceEntry:
+        raise VoiceAlreadyInstalled(f"{name} is part of the Paradee model; there is nothing to download.")
+
+    async def remove(self, name: str) -> None:
+        raise DeleteFailed("Paradee's voices are part of its model file and cannot be deleted one by one.")
+
+
 class VoiceLibrary:
     def __init__(
         self,

@@ -6,11 +6,15 @@ name: bard
 
 services:
   bard:
-    build: .
+    build:
+      context: .
+      args:
+        BARD_ENGINE: ${BARD_ENGINE:-piper}  # paradee installs the extra dependencies
     restart: unless-stopped
     environment:
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in .env}
-      BARD_VOICE: ${BARD_VOICE:-en_US-lessac-medium}
+      BARD_ENGINE: ${BARD_ENGINE:-piper}
+      BARD_VOICE: ${BARD_VOICE:-}
       EMBER_API_URL: http://ember_api:8030
     ports:
       - "127.0.0.1:${BARD_PORT:-8090}:8090"
