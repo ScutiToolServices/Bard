@@ -11,6 +11,8 @@ from collections.abc import Callable
 
 import httpx
 
+from src.runtime import as_getter
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,18 +20,18 @@ class AdminGate:
     def __init__(
         self,
         client: httpx.AsyncClient,
-        base_url: str,
+        base_url: str | Callable[[], str],
         token: str,
-        static_admins: frozenset[str] = frozenset(),
+        static_admins: frozenset[str] | Callable[[], frozenset[str]] = frozenset(),
         ttl_seconds: float = 30.0,
         clock: Callable[[], float] = time.monotonic,
         permission: str | None = None,
     ) -> None:
         self._client = client
         self._permission = permission  # None asks about bard.admin, the endpoint's default
-        self._url = f"{base_url.rstrip('/')}/api/bard/internal/admin-check"
+        self._base_url = as_getter(base_url)
         self._token = token
-        self._static = static_admins
+        self._static = as_getter(static_admins)
         self._ttl = ttl_seconds
         self._clock = clock
         self._cache: dict[str, tuple[bool, float]] = {}
@@ -38,7 +40,7 @@ class AdminGate:
         key = username.strip().lower()
         if not key:
             return False
-        if key in self._static:
+        if key in self._static():
             return True
         cached = self._cache.get(key)
         if cached is not None and cached[1] > self._clock():
@@ -55,7 +57,7 @@ class AdminGate:
         payload = {"username": username} | ({"permission": self._permission} if self._permission else {})
         try:
             response = await self._client.post(
-                self._url, json=payload, headers={"X-Internal-Token": self._token}, timeout=5
+                f"{self._base_url().rstrip('/')}/api/bard/internal/admin-check", json=payload, headers={"X-Internal-Token": self._token}, timeout=5
             )
             body = response.json() if response.status_code == 200 else None
         except (httpx.HTTPError, ValueError) as error:

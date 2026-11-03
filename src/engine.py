@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Protocol
 
 from src.config import PARADEE_VOICES, Settings
+from src.runtime import as_getter
 from src.errors import EngineFailed, VoiceUnavailable
 
 
@@ -46,9 +47,9 @@ async def encode_mp3(wav: bytes, ffmpeg: str) -> bytes:
 
 
 class PiperEngine:
-    def __init__(self, voices_dir: Path, ffmpeg: str = "ffmpeg") -> None:
+    def __init__(self, voices_dir: Path, ffmpeg: str | Callable[[], str] = "ffmpeg") -> None:
         self._dir = Path(voices_dir)
-        self._ffmpeg = ffmpeg
+        self._ffmpeg = as_getter(ffmpeg)
         self._loaded: dict[str, object] = {}
         self._load_lock = threading.Lock()
 
@@ -80,7 +81,7 @@ class PiperEngine:
         return buf.getvalue(), seconds
 
     async def _mp3(self, wav: bytes) -> bytes:
-        return await encode_mp3(wav, self._ffmpeg)
+        return await encode_mp3(wav, self._ffmpeg())
 
     async def synthesize(self, text: str, voice: str) -> Synthesis:
         wav, seconds = await asyncio.to_thread(self._wav, text, voice)
@@ -95,8 +96,8 @@ class ParadeeEngine:
     model file, so they cannot be installed or deleted one by one. The model downloads from Hugging Face on first use.
     `model` is injectable for tests: a callable `(text, voice=...)` returning float audio at 24 kHz."""
 
-    def __init__(self, ffmpeg: str = "ffmpeg", version: str = "1.2", model: object | None = None) -> None:
-        self._ffmpeg = ffmpeg
+    def __init__(self, ffmpeg: str | Callable[[], str] = "ffmpeg", version: str = "1.2", model: object | None = None) -> None:
+        self._ffmpeg = as_getter(ffmpeg)
         self._version = version
         self._model_obj = model
         self._load_lock = threading.Lock()
@@ -137,7 +138,7 @@ class ParadeeEngine:
         if voice not in PARADEE_VOICES:
             raise VoiceUnavailable(f"Voice '{voice}' is not installed.")
         wav, seconds = await asyncio.to_thread(self._wav, text, voice)
-        return Synthesis(await encode_mp3(wav, self._ffmpeg), seconds)
+        return Synthesis(await encode_mp3(wav, self._ffmpeg()), seconds)
 
 
 class MultiEngine:
@@ -163,5 +164,5 @@ class MultiEngine:
 
 def build_engine(settings: Settings) -> TtsEngine:
     """Piper always; Paradee too when its optional `paradee` extra is installed."""
-    paradee = ParadeeEngine(settings.ffmpeg) if importlib.util.find_spec("paradee") else None
-    return MultiEngine(PiperEngine(settings.voices_dir, settings.ffmpeg), paradee)
+    paradee = ParadeeEngine(lambda: settings.ffmpeg) if importlib.util.find_spec("paradee") else None
+    return MultiEngine(PiperEngine(settings.voices_dir, lambda: settings.ffmpeg), paradee)
