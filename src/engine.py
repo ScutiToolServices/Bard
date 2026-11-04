@@ -15,6 +15,7 @@ from typing import Callable, Protocol
 
 import httpx
 
+from src.admin_api import Backends, ProbeError, check
 from src.config import PARADEE_VOICES, Settings
 from src.runtime import as_getter
 from src.errors import EngineFailed, VoiceUnavailable
@@ -185,6 +186,50 @@ class HttpTtsEngine:
         return Synthesis(await encode_mp3(reply.content, self._ffmpeg()), seconds)
 
 
+class SlotEngine:
+    """Piper or Paradee the way the admin page has it set right now: the model service at the slot's URL, or `local`
+    (the library in this process; None when it is not installed). The slot is read on every call, so a change on the
+    admin page applies to the next request."""
+
+    def __init__(self, local: TtsEngine | None, slot: Callable[[], tuple[str, str] | None],
+                 ffmpeg: str | Callable[[], str] = "ffmpeg") -> None:
+        self._local, self._slot, self._ffmpeg = local, slot, ffmpeg
+        self._remote: tuple[tuple[str, str], HttpTtsEngine] | None = None
+
+    def _engine(self) -> TtsEngine | None:
+        wanted = self._slot()
+        if wanted is None:
+            return self._local
+        if self._remote is None or self._remote[0] != wanted:
+            self._remote = (wanted, HttpTtsEngine(wanted[0], wanted[1], self._ffmpeg))
+        return self._remote[1]
+
+    @property
+    def is_remote(self) -> bool:
+        return self._slot() is not None
+
+    def voices(self) -> list[str]:
+        engine = self._engine()
+        return engine.voices() if engine is not None else []
+
+    async def synthesize(self, text: str, voice: str) -> Synthesis:
+        engine = self._engine()
+        if engine is None:
+            raise VoiceUnavailable(f"Voice '{voice}' is not installed.")
+        return await engine.synthesize(text, voice)
+
+
+async def probe_voices(url: str, token: str) -> str:
+    """The admin page's Test button for a TTSPiperModel / TTSParadeeModel address: reachable, then token accepted."""
+    await check(url, "", "/health")
+    reply = await check(url, token, "/v1/voices")
+    try:
+        names = reply.json()["voices"]
+    except (ValueError, KeyError, TypeError):
+        raise ProbeError("That address is not a speech model service.") from None
+    return f"Connected, token accepted, {len(names)} voice(s)."
+
+
 class MultiEngine:
     """Routes each request to the engine that owns its voice, so the caller picks the engine by picking a voice.
     Voice names never overlap (Paradee's are fixed and lack the Piper `lang_REGION-name-quality` shape)."""
@@ -203,16 +248,22 @@ class MultiEngine:
         return await self._owner(voice).synthesize(text, voice)
 
 
-def build_engine(settings: Settings) -> TtsEngine:
-    """Each engine is the model service at BARD_PIPER_URL / BARD_PARADEE_URL when set, otherwise the library run in this
-    process. BARD_ENGINE=paradee serves Paradee alone (its four voices); otherwise Piper, plus Paradee when it is
-    configured or its optional `paradee` extra is installed."""
+def make_backends(settings: Settings) -> Backends:
+    """The slots, starting from BARD_PIPER_URL / BARD_PARADEE_URL (and their tokens); the admin page can override them."""
+    return Backends(settings.data_dir / "backends.json", {
+        "piper": {"url": settings.piper_url, "token": settings.piper_token},
+        "paradee": {"url": settings.paradee_url, "token": settings.paradee_token},
+    })
+
+
+def build_engine(settings: Settings, backends: Backends | None = None) -> TtsEngine:
+    """Each engine is the model service at its slot when the slot has a URL, otherwise the library run in this process.
+    BARD_ENGINE=paradee serves Paradee alone (its four voices) when it is available; otherwise Piper plus Paradee.
+    The choice of engines is made at start; the slots are read on every call."""
+    backends = backends or make_backends(settings)
     ffmpeg = lambda: settings.ffmpeg  # noqa: E731
-    if settings.paradee_url:
-        paradee: TtsEngine | None = HttpTtsEngine(settings.paradee_url, settings.paradee_token, ffmpeg)
-    else:
-        paradee = ParadeeEngine(ffmpeg) if importlib.util.find_spec("paradee") else None
-    if settings.engine == "paradee" and paradee is not None:
+    installed = importlib.util.find_spec("paradee") is not None
+    paradee = SlotEngine(ParadeeEngine(ffmpeg) if installed else None, lambda: backends.get("paradee"), ffmpeg)
+    if settings.engine == "paradee" and (installed or paradee.is_remote):
         return paradee
-    piper = HttpTtsEngine(settings.piper_url, settings.piper_token, ffmpeg) if settings.piper_url else PiperEngine(settings.voices_dir, ffmpeg)
-    return MultiEngine(piper, paradee)
+    return MultiEngine(SlotEngine(PiperEngine(settings.voices_dir, ffmpeg), lambda: backends.get("piper"), ffmpeg), paradee)

@@ -9,7 +9,8 @@ import pytest
 
 from src.config import Settings
 import src.engine as engine_module
-from src.engine import HttpTtsEngine, MultiEngine, ParadeeEngine, PiperEngine, build_engine
+from src.admin_api import Backends
+from src.engine import HttpTtsEngine, MultiEngine, ParadeeEngine, PiperEngine, SlotEngine, build_engine, probe_voices
 from src.errors import EngineFailed, VoiceUnavailable
 
 VOICES = Path(__file__).resolve().parent.parent / ".data" / "voices"
@@ -115,7 +116,7 @@ def test_build_engine_lists_paradee_alone_when_it_is_the_chosen_engine(tmp_path)
     assert isinstance(build_engine(Settings(data_dir=tmp_path)), MultiEngine)
     chosen = build_engine(Settings(data_dir=tmp_path, engine="paradee"))
     if importlib.util.find_spec("paradee"):
-        assert isinstance(chosen, ParadeeEngine) and "en_US-lessac-medium" not in chosen.voices()
+        assert isinstance(chosen._engine(), ParadeeEngine) and "en_US-lessac-medium" not in chosen.voices()
     else:
         assert isinstance(chosen, MultiEngine)
 
@@ -215,8 +216,46 @@ def test_http_engine_voices_fail_when_the_service_was_never_reached(monkeypatch)
 
 def test_build_engine_uses_the_model_services_when_their_urls_are_set(tmp_path):
     both = build_engine(Settings(data_dir=tmp_path, piper_url="http://p:9150", paradee_url="http://d:9160"))
-    assert isinstance(both, MultiEngine) and isinstance(both._piper, HttpTtsEngine) and isinstance(both._paradee, HttpTtsEngine)
+    assert isinstance(both, MultiEngine) and isinstance(both._piper._engine(), HttpTtsEngine)
+    assert isinstance(both._paradee._engine(), HttpTtsEngine)
     alone = build_engine(Settings(data_dir=tmp_path, engine="paradee", paradee_url="http://d:9160"))
-    assert isinstance(alone, HttpTtsEngine)
+    assert isinstance(alone, SlotEngine) and alone.is_remote
     local_piper = build_engine(Settings(data_dir=tmp_path, paradee_url="http://d:9160"))
-    assert isinstance(local_piper._piper, PiperEngine) and isinstance(local_piper._paradee, HttpTtsEngine)
+    assert isinstance(local_piper._piper._engine(), PiperEngine) and isinstance(local_piper._paradee._engine(), HttpTtsEngine)
+
+
+def test_a_slot_changed_on_the_admin_page_applies_to_the_next_call(tmp_path, monkeypatch):
+    backends = Backends(tmp_path / "backends.json")
+    local = PiperEngine(tmp_path / "voices")
+    slot = SlotEngine(local, lambda: backends.get("piper"))
+    assert slot.voices() == [] and slot._engine() is local and not slot.is_remote
+    remote(monkeypatch, lambda request: httpx.Response(200, json={"voices": ["x", "y"]}))
+    backends.set("piper", "http://piper:9150", "t")
+    assert slot.voices() == ["x", "y"] and slot.is_remote and isinstance(slot._engine(), HttpTtsEngine)
+    first = slot._engine()
+    assert slot._engine() is first  # the same address and token reuse the client
+    backends.set("piper", "http://other:9150", None)
+    assert slot._engine() is not first
+    backends.set("piper", "", None)
+    assert slot._engine() is local
+
+
+async def test_a_slot_with_no_local_engine_says_the_voice_is_not_installed(tmp_path):
+    with pytest.raises(VoiceUnavailable):
+        await SlotEngine(None, lambda: None).synthesize("hi", "af_heart")
+    assert SlotEngine(None, lambda: None).voices() == []
+
+
+async def test_probe_voices_checks_health_then_the_token(monkeypatch):
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.path, request.headers.get("X-Internal-Token")))
+        return httpx.Response(200, json={"voices": ["a", "b"]} if request.url.path == "/v1/voices" else {"status": "ok"})
+
+    remote(monkeypatch, handler)
+    assert await probe_voices("http://p:9150", "tok") == "Connected, token accepted, 2 voice(s)."
+    assert seen == [("/health", None), ("/v1/voices", "tok")]
+    remote(monkeypatch, lambda request: httpx.Response(200, json={"status": "ok"}))
+    with pytest.raises(Exception, match="not a speech model service"):
+        await probe_voices("http://p:9150", "tok")

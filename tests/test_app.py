@@ -158,3 +158,24 @@ def test_admin_refuses_bad_values_and_unknown_voices(admin_client):
 def test_admin_page_is_served_without_the_internal_token(admin_client):
     client, _ = admin_client
     assert client.get("/admin/").status_code == 200
+
+
+def test_the_admin_page_shows_status_usage_and_the_piper_and_paradee_slots(admin_client):
+    client, _ = admin_client
+    pw = {"X-Admin-Password": "pw"}
+    assert client.get("/admin/status").status_code == 401
+    assert client.post("/api/speak", json={"text": "hello there"}, headers=ANN).status_code == 200
+    body = client.get("/admin/status", headers=pw).json()
+    assert body["service"] == "Bard" and body["usage"]["calls"] == 1 and body["usage"]["users"][0]["user"] == "ann"
+    assert {"label": "Piper", "value": "in this process"} in body["items"]
+    slots = {s["key"]: s for s in client.get("/admin/backends", headers=pw).json()["backends"]}
+    assert set(slots) == {"piper", "paradee"} and slots["piper"]["mode"] == "local" and slots["piper"]["local"] is True
+    client.put("/admin/backends/piper", headers=pw, json={"url": "http://piper:9150", "token": "t"})
+    assert {"label": "Piper", "value": "model service"} in client.get("/admin/status", headers=pw).json()["items"]
+
+
+def test_the_slots_start_from_the_environment_settings(tmp_path):
+    settings = Settings(data_dir=tmp_path, voice="v1", admin_password="pw", piper_url="http://p:9150", piper_token="x")
+    client = TestClient(build_app(settings, engine=FakeEngine()))
+    slot = client.get("/admin/backends", headers={"X-Admin-Password": "pw"}).json()["backends"][0]
+    assert (slot["key"], slot["mode"], slot["url"], slot["token_set"], slot["source"]) == ("piper", "remote", "http://p:9150", True, "environment")
