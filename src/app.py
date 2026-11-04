@@ -38,6 +38,19 @@ INSTRUCTIONS = (
 
 WEB_DIR = Path(os.environ.get("BARD_WEB_DIR") or PROJECT_DIR / "web")
 
+# Public client requests retain the ordinary internal-token and owner checks.
+PLAYGROUND = {"operations": [{
+    "label": "Speak", "route": "/api/speak", "method": "POST", "encoding": "json", "response": "json",
+    "fields": [
+        {"key": "X-Requester-Username", "label": "Requester username", "type": "text", "location": "header",
+         "required": True, "default": "playground"},
+        {"key": "text", "label": "Text", "type": "textarea", "required": True, "default": "Hello from Bard."},
+        {"key": "voice", "label": "Voice", "type": "select", "options": []},
+    ],
+    "lookup": {"route": "/api/voices", "key": "voices", "field": "voice"},
+    "followup": {"route": "/api/files/{file_id}", "method": "GET", "response": "audio"},
+}]}
+
 
 class SpeakIn(BaseModel):
     """Strict HTTP input; the service cleans and bounds spoken text."""
@@ -146,7 +159,8 @@ def build_app(
         return [{"label": "Default voice", "value": settings.voice}, {"label": "Voices", "value": voices}, *where]
 
     if config is not None:
-        register(mcp, service="Bard", admin_password=base.admin_password, usage=usage, backends=backends, status=status, slots=[
+        register(mcp, service="Bard", admin_password=base.admin_password, usage=usage, backends=backends, status=status,
+                 playground=PLAYGROUND, slots=[
             Slot("piper", "Piper", "Text to speech with Piper. Local runs the piper-tts library inside Bard (voices in .data/voices); "
                  "a model service is a TTSPiperModel address.", probe_voices, "http://127.0.0.1:9150"),
             Slot("paradee", "Paradee", "Text to speech with Paradee's four voices. Local needs the paradee extra installed; "

@@ -70,3 +70,10 @@ With `BARD_ADMIN_PASSWORD` set, `/admin/` (header `X-Admin-Password`) has four p
 - **Usage**: calls, errors and average time per user since the service started (kept in memory, so a restart clears it).
 - **Model services**: Piper and Paradee each run in Bard or at a `TTSPiperModel` / `TTSParadeeModel` address (`BARD_PIPER_URL`, `BARD_PIPER_TOKEN`, `BARD_PARADEE_URL`, `BARD_PARADEE_TOKEN` are only the starting values). Pick **In this service** or **A model service**, set the address and token, press **Test connection** (it calls the other service with that token), then **Save**. A change applies to the next call; the token is stored in `.data/backends.json`, never shown again, and `Use the environment value` drops the saved one.
 - **Settings**: the options saved in `.data/settings.json`.
+
+
+## Try it from the admin page
+
+Open `/admin/` and use **Try it** with the service's internal API token and a requester username. The token is held only in memory, separate from admin sign-in. Requests use the ordinary public API, quotas and cache; the panel shows HTTP status, latency, output, cancellation and curl with a token placeholder. See [the web UI guide](docs/guide-web-ui.md).
+
+Enter the requester username that will own the generated audio, choose an installed voice and enter text. `POST /api/speak` returns a file ID; the panel fetches `GET /api/files/{file_id}` with the same token and username and displays its MP3 with playback controls and a download. Voice choices come from `GET /api/voices`. This exercises the same text preparation, quotas, cache and engine selection as ordinary clients. Generated audio follows the normal retention policy.
