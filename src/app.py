@@ -18,9 +18,10 @@ from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Mount
 from starlette.staticfiles import StaticFiles
 
+from src.admin_api import Slot, Usage, register
 from src.config import PROJECT_DIR, Settings
 from src.contract import SpeakResult, VoiceList
-from src.engine import TtsEngine, build_engine
+from src.engine import TtsEngine, build_engine, make_backends, probe_voices
 from src.errors import BardError, EngineFailed, IdentityRequired, QuotaExceeded
 from src.identity import owner_from_context
 from src.middleware import InternalTokenMiddleware
@@ -54,7 +55,9 @@ def build_app(
     changeable on /admin/ while running; without it they stay as the environment set them."""
     config = config if config is not None else make_config(settings)
     base, settings = settings, live(settings, config)
-    engine = engine or build_engine(base)
+    backends = make_backends(base)
+    usage = Usage()
+    engine = engine or build_engine(base, backends)
     store = AudioStore(base.audio_dir, lambda: settings.ttl_seconds, lambda: settings.quota_bytes)
     store.sweep()
     # shortcut: these HTTP clients live as long as the process and are not closed on shutdown.
@@ -70,7 +73,9 @@ def build_app(
         """Turn text into spoken English (MP3). Creates an audio file owned by the asking user; the chat shows
         a player and a download link, so do not paste a link yourself. Returns the file id, duration and a summary."""
         try:
-            return await service.speak(owner_from_context(ctx), text, voice)
+            owner = owner_from_context(ctx)
+            async with usage.track(owner, "speak"):
+                return await service.speak(owner, text, voice)
         except BardError as error:
             raise ToolError(str(error)) from error
 
@@ -116,7 +121,8 @@ def build_app(
         except (ValueError, ValidationError):
             return JSONResponse({"error": "invalid_request", "message": "Send text and an optional installed voice."}, status_code=400)
         try:
-            result = await service.speak(owner, body.text, body.voice)
+            async with usage.track(owner, "speak"):
+                result = await service.speak(owner, body.text, body.voice)
         except BardError as error:
             code = 401 if isinstance(error, IdentityRequired) else 413 if isinstance(error, QuotaExceeded) else 503 if isinstance(error, EngineFailed) else 400
             return JSONResponse({"error": error.code, "message": str(error)}, status_code=code)
@@ -130,7 +136,23 @@ def build_app(
         result = await service.list_voices()
         return JSONResponse({"voices": result.voices})
 
+    async def status() -> list[dict[str, str]]:
+        try:
+            voices = f"{len(await asyncio.to_thread(engine.voices))} installed"
+        except BardError:
+            voices = "unavailable (a model service cannot be reached)"
+        modes = [("Piper", "piper"), ("Paradee", "paradee")]
+        where = [{"label": label, "value": "model service" if backends.get(key) else "in this process"} for label, key in modes]
+        return [{"label": "Default voice", "value": settings.voice}, {"label": "Voices", "value": voices}, *where]
+
     if config is not None:
+        register(mcp, service="Bard", admin_password=base.admin_password, usage=usage, backends=backends, status=status, slots=[
+            Slot("piper", "Piper", "Text to speech with Piper. Local runs the piper-tts library inside Bard (voices in .data/voices); "
+                 "a model service is a TTSPiperModel address.", probe_voices, "http://127.0.0.1:9150"),
+            Slot("paradee", "Paradee", "Text to speech with Paradee's four voices. Local needs the paradee extra installed; "
+                 "a model service is a TTSParadeeModel address.", probe_voices, "http://127.0.0.1:9160"),
+        ])
+
         @mcp.custom_route("/admin/settings", methods=["GET", "PUT"])
         async def admin_settings(request: Request) -> Response:
             given = request.headers.get("x-admin-password", "").encode("utf-8")

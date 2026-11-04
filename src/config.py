@@ -21,6 +21,11 @@ class Settings:
     engine: str = "piper"  # "piper" or "paradee"
     voice: str = "en_US-lessac-medium"
     ffmpeg: str = "ffmpeg"
+    # Empty = run Piper / Paradee in this process. Set = call that model service (AI/ModelServices) with its token.
+    piper_url: str = ""
+    piper_token: str = ""
+    paradee_url: str = ""
+    paradee_token: str = ""
     max_chars: int = 5000
     ttl_seconds: int = 24 * 3600
     quota_bytes: int = 200 * 1024 * 1024
@@ -64,6 +69,10 @@ def load_settings() -> Settings:
         engine=engine,
         voice=voice,
         ffmpeg=env("BARD_FFMPEG", "ffmpeg"),
+        piper_url=env("BARD_PIPER_URL", ""),
+        piper_token=env("BARD_PIPER_TOKEN", ""),
+        paradee_url=env("BARD_PARADEE_URL", ""),
+        paradee_token=env("BARD_PARADEE_TOKEN", ""),
         max_chars=int(env("BARD_MAX_CHARS", "5000")),
         ttl_seconds=int(env("BARD_TTL_HOURS", "24")) * 3600,
         quota_bytes=int(env("BARD_QUOTA_MB", "200")) * 1024 * 1024,
