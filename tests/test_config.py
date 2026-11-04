@@ -55,3 +55,13 @@ def test_an_unknown_engine_is_refused(monkeypatch):
     monkeypatch.setenv("BARD_ENGINE", "kokoro")
     with pytest.raises(ValueError, match="BARD_ENGINE"):
         load_settings()
+
+
+def test_model_service_urls_and_tokens_come_from_the_environment(monkeypatch):
+    monkeypatch.setenv("BARD_PIPER_URL", "http://p:9150")
+    monkeypatch.setenv("BARD_PIPER_TOKEN", "ttspiper_x")
+    monkeypatch.setenv("BARD_PARADEE_URL", "http://d:9160")
+    monkeypatch.setenv("BARD_PARADEE_TOKEN", "ttsparadee_y")
+    loaded = load_settings()
+    assert (loaded.piper_url, loaded.piper_token, loaded.paradee_url, loaded.paradee_token) == (
+        "http://p:9150", "ttspiper_x", "http://d:9160", "ttsparadee_y")

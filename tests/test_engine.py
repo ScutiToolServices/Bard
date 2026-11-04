@@ -4,10 +4,12 @@ import shutil
 import wave
 from pathlib import Path
 
+import httpx
 import pytest
 
 from src.config import Settings
-from src.engine import MultiEngine, ParadeeEngine, PiperEngine, build_engine
+import src.engine as engine_module
+from src.engine import HttpTtsEngine, MultiEngine, ParadeeEngine, PiperEngine, build_engine
 from src.errors import EngineFailed, VoiceUnavailable
 
 VOICES = Path(__file__).resolve().parent.parent / ".data" / "voices"
@@ -138,3 +140,83 @@ async def test_real_paradee_synthesis_produces_speech():
     pytest.importorskip("paradee")
     result = await ParadeeEngine().synthesize("Hello from Bard.", "bf_isabella")
     assert result.duration_s > 0.5 and len(result.mp3) > 3000
+
+
+REAL_CLIENT = httpx.AsyncClient  # captured at import: remote() may run twice in one test
+
+
+def remote(monkeypatch, handler):
+    """HttpTtsEngine's clients, answered by `handler` instead of the network; ffmpeg is replaced by a stub."""
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: REAL_CLIENT(transport=httpx.MockTransport(handler), **kwargs))
+    monkeypatch.setattr(httpx, "get", lambda url, **kwargs: httpx.Client(transport=httpx.MockTransport(handler)).get(url, **kwargs))
+
+    async def fake_mp3(wav, ffmpeg):
+        return b"mp3:" + wav[:4]
+
+    monkeypatch.setattr(engine_module, "encode_mp3", fake_mp3)
+
+
+async def test_http_engine_posts_text_and_voice_with_the_token_and_returns_mp3(monkeypatch):
+    seen = {}
+
+    def handler(request):
+        seen.update(url=str(request.url), token=request.headers["X-Internal-Token"], body=request.content)
+        return httpx.Response(200, content=silent_wav(0.5), headers={"content-type": "audio/wav"})
+
+    remote(monkeypatch, handler)
+    result = await HttpTtsEngine("http://piper:9150/", "ttspiper_x").synthesize("hello", "en_US-a")
+    assert seen["url"] == "http://piper:9150/v1/speak" and seen["token"] == "ttspiper_x"
+    assert b'"voice":"en_US-a"' in seen["body"].replace(b" ", b"") and b'"text":"hello"' in seen["body"].replace(b" ", b"")
+    assert result.mp3.startswith(b"mp3:RIFF") and abs(result.duration_s - 0.5) < 0.01
+
+
+@pytest.mark.parametrize("status,error", [(403, VoiceUnavailable), (404, VoiceUnavailable), (422, EngineFailed),
+                                          (429, EngineFailed), (500, EngineFailed)])
+async def test_http_engine_maps_failures_to_safe_errors(monkeypatch, status, error):
+    remote(monkeypatch, lambda request: httpx.Response(status, json={"detail": "boom at /secret/path"}))
+    with pytest.raises(error) as raised:
+        await HttpTtsEngine("http://piper:9150").synthesize("hi", "v")
+    assert "secret" not in str(raised.value) and "piper" not in str(raised.value)
+
+
+async def test_http_engine_unreachable_service_and_bad_audio_are_engine_failed(monkeypatch):
+    def refuse(request):
+        raise httpx.ConnectError("refused http://piper:9150")
+
+    remote(monkeypatch, refuse)
+    with pytest.raises(EngineFailed):
+        await HttpTtsEngine("http://piper:9150").synthesize("hi", "v")
+    remote(monkeypatch, lambda request: httpx.Response(200, content=b"not a wav"))
+    with pytest.raises(EngineFailed):
+        await HttpTtsEngine("http://piper:9150").synthesize("hi", "v")
+
+
+def test_http_engine_lists_the_voices_the_token_may_use_and_keeps_them_a_while(monkeypatch):
+    calls = []
+
+    def handler(request):
+        calls.append(request.headers.get("X-Internal-Token"))
+        if len(calls) > 1:
+            return httpx.Response(500)
+        return httpx.Response(200, json={"voices": ["a", "b"], "default": "a"})
+
+    remote(monkeypatch, handler)
+    engine = HttpTtsEngine("http://piper:9150", "t")
+    assert engine.voices() == ["a", "b"] and engine.voices() == ["a", "b"] and calls == ["t"]  # second call is from the cache
+    engine._voices_at -= 60
+    assert engine.voices() == ["a", "b"] and len(calls) == 2  # service failing: the last list stays
+
+
+def test_http_engine_voices_fail_when_the_service_was_never_reached(monkeypatch):
+    remote(monkeypatch, lambda request: httpx.Response(500))
+    with pytest.raises(EngineFailed):
+        HttpTtsEngine("http://piper:9150").voices()
+
+
+def test_build_engine_uses_the_model_services_when_their_urls_are_set(tmp_path):
+    both = build_engine(Settings(data_dir=tmp_path, piper_url="http://p:9150", paradee_url="http://d:9160"))
+    assert isinstance(both, MultiEngine) and isinstance(both._piper, HttpTtsEngine) and isinstance(both._paradee, HttpTtsEngine)
+    alone = build_engine(Settings(data_dir=tmp_path, engine="paradee", paradee_url="http://d:9160"))
+    assert isinstance(alone, HttpTtsEngine)
+    local_piper = build_engine(Settings(data_dir=tmp_path, paradee_url="http://d:9160"))
+    assert isinstance(local_piper._piper, PiperEngine) and isinstance(local_piper._paradee, HttpTtsEngine)

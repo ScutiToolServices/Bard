@@ -7,10 +7,13 @@ import asyncio
 import importlib.util
 import io
 import threading
+import time
 import wave
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
+
+import httpx
 
 from src.config import PARADEE_VOICES, Settings
 from src.runtime import as_getter
@@ -131,6 +134,57 @@ class ParadeeEngine:
         return Synthesis(await encode_mp3(wav, self._ffmpeg()), seconds)
 
 
+class HttpTtsEngine:
+    """A TTSPiperModel or TTSParadeeModel service (AI/ModelServices) in place of the in-process engine: `POST /v1/speak`
+    returns WAV, `GET /v1/voices` lists the voices the token may use. ffmpeg stays here (WAV to MP3).
+    Needs a token when the service has an admin password; the token's "projects" list limits the voices.
+
+    shortcut: one new connection per call, and the voice list is kept 30 s; upgrade if call volume grows."""
+
+    VOICES_TTL_S = 30.0
+
+    def __init__(self, url: str, token: str = "", ffmpeg: str | Callable[[], str] = "ffmpeg", timeout_s: float = 60.0) -> None:
+        self._url = url.rstrip("/")
+        self._headers = {"X-Internal-Token": token} if token else {}
+        self._ffmpeg = as_getter(ffmpeg)
+        self._timeout_s = timeout_s
+        self._voices: list[str] | None = None
+        self._voices_at = 0.0
+
+    def voices(self) -> list[str]:
+        """Blocking (Bard calls it through asyncio.to_thread). Keeps the last list when the service is briefly away."""
+        if self._voices is not None and time.monotonic() - self._voices_at < self.VOICES_TTL_S:
+            return list(self._voices)
+        try:
+            reply = httpx.get(f"{self._url}/v1/voices", headers=self._headers, timeout=10.0)
+            reply.raise_for_status()
+            self._voices = [str(name) for name in reply.json()["voices"]]
+            self._voices_at = time.monotonic()
+        except Exception as error:  # never leak the URL or the service's text
+            if self._voices is None:
+                raise EngineFailed("The speech service could not be reached.") from error
+        return list(self._voices)
+
+    async def synthesize(self, text: str, voice: str) -> Synthesis:
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout_s) as http:
+                reply = await http.post(f"{self._url}/v1/speak", json={"text": text, "voice": voice}, headers=self._headers)
+        except httpx.HTTPError as error:
+            raise EngineFailed("The speech service could not be reached.") from error
+        if reply.status_code in (403, 404):
+            raise VoiceUnavailable(f"Voice '{voice}' is not installed.")
+        if reply.status_code == 422:
+            raise EngineFailed("No speech could be made from that text.")
+        if reply.status_code != 200:
+            raise EngineFailed("The speech service could not make that audio. Try again.")
+        try:
+            with wave.open(io.BytesIO(reply.content)) as wav:
+                seconds = wav.getnframes() / wav.getframerate()
+        except (wave.Error, EOFError, ZeroDivisionError) as error:
+            raise EngineFailed("The speech service returned audio Bard cannot read.") from error
+        return Synthesis(await encode_mp3(reply.content, self._ffmpeg()), seconds)
+
+
 class MultiEngine:
     """Routes each request to the engine that owns its voice, so the caller picks the engine by picking a voice.
     Voice names never overlap (Paradee's are fixed and lack the Piper `lang_REGION-name-quality` shape)."""
@@ -150,8 +204,15 @@ class MultiEngine:
 
 
 def build_engine(settings: Settings) -> TtsEngine:
-    """BARD_ENGINE=paradee serves Paradee alone (its four voices); otherwise Piper, plus Paradee when its optional `paradee` extra is installed."""
-    paradee = ParadeeEngine(lambda: settings.ffmpeg) if importlib.util.find_spec("paradee") else None
+    """Each engine is the model service at BARD_PIPER_URL / BARD_PARADEE_URL when set, otherwise the library run in this
+    process. BARD_ENGINE=paradee serves Paradee alone (its four voices); otherwise Piper, plus Paradee when it is
+    configured or its optional `paradee` extra is installed."""
+    ffmpeg = lambda: settings.ffmpeg  # noqa: E731
+    if settings.paradee_url:
+        paradee: TtsEngine | None = HttpTtsEngine(settings.paradee_url, settings.paradee_token, ffmpeg)
+    else:
+        paradee = ParadeeEngine(ffmpeg) if importlib.util.find_spec("paradee") else None
     if settings.engine == "paradee" and paradee is not None:
         return paradee
-    return MultiEngine(PiperEngine(settings.voices_dir, lambda: settings.ffmpeg), paradee)
+    piper = HttpTtsEngine(settings.piper_url, settings.piper_token, ffmpeg) if settings.piper_url else PiperEngine(settings.voices_dir, ffmpeg)
+    return MultiEngine(piper, paradee)

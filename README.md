@@ -42,6 +42,8 @@ With `BARD_ENGINE=paradee` (and the `paradee` extra installed) Bard serves Parad
 | `BARD_QUOTA_MB` | `200` | Audio storage per user. |
 | `BARD_MAX_CONCURRENT` | `1` | Simultaneous syntheses. |
 | `BARD_FFMPEG` | `ffmpeg` | ffmpeg executable. |
+| `BARD_PIPER_URL` / `BARD_PIPER_TOKEN` | empty | Use the `TTSPiperModel` service at this URL (sent `X-Internal-Token`) instead of running Piper in Bard. Voices then come from the service's `GET /v1/voices`; nothing is read from `.data/voices`. |
+| `BARD_PARADEE_URL` / `BARD_PARADEE_TOKEN` | empty | The same for `TTSParadeeModel`. The `paradee` extra is not needed then. |
 
 ## Notes
 
