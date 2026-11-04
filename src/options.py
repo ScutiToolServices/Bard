@@ -16,8 +16,6 @@ FIELDS = {
     "voice": ("voice", str),
     "max_concurrent": ("max_concurrent", int),
     "ffmpeg": ("ffmpeg", str),
-    "ember_api_url": ("ember_api_url", lambda url: url.rstrip("/")),
-    "admins": ("admins", lambda names: frozenset(n.strip().lower() for n in names.split(",") if n.strip())),
 }
 
 
@@ -27,14 +25,10 @@ def schema(base: Settings) -> list[Setting]:
         Setting("ttl_hours", "Keep audio for (hours)", "int", base.ttl_seconds // 3600, minimum=1, maximum=8760),
         Setting("quota_mb", "Audio storage per user (MB)", "int", base.quota_bytes // MB, minimum=1, maximum=100000),
         Setting("voice", "Default voice", "text", base.voice, blank=False,
-                help="An installed voice. Delete protection follows the new default"),
+                help="An installed voice."),
         Setting("max_concurrent", "Speech jobs at once", "int", base.max_concurrent, minimum=1, maximum=16,
                 restart=True),
         Setting("ffmpeg", "ffmpeg program", "text", base.ffmpeg, blank=False, help="A name on PATH or a full path"),
-        Setting("ember_api_url", "ember_api address", "text", base.ember_api_url, blank=False,
-                help="Where Bard asks who holds bard.admin and bard.delete"),
-        Setting("admins", "Break-glass admins", "text", ",".join(sorted(base.admins)),
-                help="Usernames, comma-separated, who count as bard.admin even when ember_api is down. Never grants delete"),
     ]
 
 

@@ -12,12 +12,10 @@ from mcp.shared._httpx_utils import create_mcp_http_client
 
 from src.app import build_app
 from src.config import Settings
-from tests.fakes import FakeEngine, FakeGate, FakeLibrary
+from tests.fakes import FakeEngine
 
 TOKEN = {"X-Internal-Token": "tok"}
 ANN = {"requester": {"username": "ann", "email": "a@x"}}
-BOB = {"requester": {"username": "bob", "email": "b@x"}}  # holds bard.admin, not bard.delete
-CAL = {"requester": {"username": "cal", "email": "c@x"}}  # holds neither
 
 
 def free_port() -> int:
@@ -30,9 +28,7 @@ def free_port() -> int:
 def port(tmp_path):
     port = free_port()
     settings = Settings(host="127.0.0.1", port=port, data_dir=tmp_path, internal_token="tok", voice="v1")
-    app = build_app(
-        settings, engine=FakeEngine(), gate=FakeGate({"ann", "bob"}), library=FakeLibrary(), delete_gate=FakeGate({"ann"})
-    )
+    app = build_app(settings, engine=FakeEngine())
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
@@ -62,10 +58,7 @@ async def test_speak_over_mcp_then_fetch_the_file_over_http(port):
         return names, result
 
     names, result = await with_session(port, TOKEN, work)
-    assert names == {
-        "tool_bard_speak", "tool_bard_listVoices", "tool_bard_listDownloadable", "tool_bard_downloadVoice",
-        "tool_bard_deleteVoice",
-    }
+    assert names == {"tool_bard_speak", "tool_bard_listVoices"}
     assert not result.isError
     body = json.loads(result.content[0].text)
     assert body["voice"] == "v1" and body["file_id"] and "Speech ready" in body["message"]
@@ -84,41 +77,6 @@ async def test_speak_without_a_requester_is_a_tool_error(port):
     result = await with_session(port, TOKEN, work)
     assert result.isError
     assert "signed-in user" in result.content[0].text
-
-
-async def test_an_admin_can_list_and_download_voices_over_mcp(port):
-    async def work(session):
-        listed = await session.call_tool("tool_bard_listDownloadable", {"language": "en"}, meta=ANN)
-        got = await session.call_tool("tool_bard_downloadVoice", {"voice": "en_US-ryan-high"}, meta=ANN)
-        return listed, got
-
-    listed, got = await with_session(port, TOKEN, work)
-    assert not listed.isError and "en_US-ryan-high" in listed.content[0].text
-    assert not got.isError and json.loads(got.content[0].text)["voice"] == "en_US-ryan-high"
-
-
-async def test_a_non_admin_is_refused_the_admin_tools_but_can_list_installed_voices(port):
-    async def work(session):
-        listed = await session.call_tool("tool_bard_listDownloadable", {}, meta=CAL)
-        got = await session.call_tool("tool_bard_downloadVoice", {"voice": "en_US-ryan-high"}, meta=CAL)
-        installed = await session.call_tool("tool_bard_listVoices", {}, meta=CAL)
-        return listed, got, installed
-
-    listed, got, installed = await with_session(port, TOKEN, work)
-    for result in (listed, got):
-        assert result.isError and "admin" in result.content[0].text.lower()
-    assert not installed.isError
-
-
-async def test_deleting_a_voice_needs_bard_delete_which_admin_does_not_imply(port):
-    async def work(session):
-        refused = await session.call_tool("tool_bard_deleteVoice", {"voice": "v2"}, meta=BOB)
-        allowed = await session.call_tool("tool_bard_deleteVoice", {"voice": "v2"}, meta=ANN)
-        return refused, allowed
-
-    refused, allowed = await with_session(port, TOKEN, work)
-    assert refused.isError and "bard.delete" in refused.content[0].text
-    assert not allowed.isError and json.loads(allowed.content[0].text)["voice"] == "v2"
 
 
 async def test_mcp_rejects_a_missing_token(port):

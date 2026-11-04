@@ -120,27 +120,6 @@ def test_paradee_setting_serves_its_four_voices_and_speaks(tmp_path):
         assert reply.status_code == 200 and reply.json()["voice"] == "bm_fable" and reply.json()["duration_s"] == 0.5
 
 
-def test_paradee_setting_replaces_the_voice_library_with_fixed_voices(tmp_path):
-    from src.errors import DeleteFailed
-    from src.service import BardService
-    from tests.fakes import FakeGate
-    import asyncio
-
-    from src.engine import ParadeeEngine
-    from src.voices import FixedVoices
-    from src.engine import PARADEE_VOICES
-    from tests.test_engine import FakeParadee
-
-    settings = Settings(data_dir=tmp_path, internal_token="tok", engine="paradee", voice="af_heart")
-    store = AudioStore(settings.audio_dir, settings.ttl_seconds, settings.quota_bytes)
-    service = BardService(ParadeeEngine(model=FakeParadee()), store, settings, FixedVoices(PARADEE_VOICES),
-                          FakeGate(("ann",)), FakeGate(("ann",)))
-    listed = asyncio.run(service.list_downloadable("ann", "en_GB", None))
-    assert [v.voice for v in listed.voices] == ["bf_isabella", "bm_fable"]
-    with pytest.raises(DeleteFailed):
-        asyncio.run(service.delete_voice("ann", "bm_fable"))
-
-
 @pytest.fixture
 def admin_client(tmp_path):
     settings = Settings(data_dir=tmp_path, internal_token="tok", voice="v1", admin_password="pw")

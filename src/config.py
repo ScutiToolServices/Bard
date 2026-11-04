@@ -25,20 +25,12 @@ class Settings:
     ttl_seconds: int = 24 * 3600
     quota_bytes: int = 200 * 1024 * 1024
     max_concurrent: int = 1
-    # ember_api answers "does this username hold bard.admin"; BARD_ADMINS adds usernames
-    # (lowercase) that count as admins even when ember_api cannot be reached.
-    ember_api_url: str = "http://127.0.0.1:8030"
-    admins: frozenset[str] = frozenset()
     # Unlocks /admin/ (settings page). Empty = the page is off and settings stay as the environment set them.
     admin_password: str = ""
 
     @property
     def voices_dir(self) -> Path:
         return self.data_dir / "voices"
-
-    @property
-    def staging_dir(self) -> Path:
-        return self.data_dir / "staging"
 
     @property
     def audio_dir(self) -> Path:
@@ -76,7 +68,5 @@ def load_settings() -> Settings:
         ttl_seconds=int(env("BARD_TTL_HOURS", "24")) * 3600,
         quota_bytes=int(env("BARD_QUOTA_MB", "200")) * 1024 * 1024,
         max_concurrent=int(env("BARD_MAX_CONCURRENT", "1")),
-        ember_api_url=env("EMBER_API_URL", "http://127.0.0.1:8030").rstrip("/"),
-        admins=frozenset(name.strip().lower() for name in env("BARD_ADMINS", "").split(",") if name.strip()),
         admin_password=env("BARD_ADMIN_PASSWORD", ""),
     )

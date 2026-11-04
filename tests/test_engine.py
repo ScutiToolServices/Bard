@@ -73,10 +73,9 @@ class FakeParadee:
         return numpy.zeros(12000, dtype="float32")
 
 
-def test_paradee_lists_its_four_voices_and_unload_does_nothing():
+def test_paradee_lists_its_four_voices():
     engine = ParadeeEngine(model=FakeParadee())
     assert engine.voices() == ["af_heart", "bf_isabella", "am_puck", "bm_fable"]
-    engine.unload("af_heart")
     assert engine.voices()[0] == "af_heart"
 
 

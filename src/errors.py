@@ -23,27 +23,3 @@ class EngineFailed(BardError):
 
 class IdentityRequired(BardError):
     code = "identity_required"
-
-
-class AdminRequired(BardError):
-    code = "admin_required"
-
-
-class CatalogUnavailable(BardError):
-    code = "catalog_unavailable"
-
-
-class VoiceNotInCatalog(BardError):
-    code = "voice_not_in_catalog"
-
-
-class VoiceAlreadyInstalled(BardError):
-    code = "voice_already_installed"
-
-
-class DownloadFailed(BardError):
-    code = "download_failed"
-
-
-class DeleteFailed(BardError):
-    code = "delete_failed"

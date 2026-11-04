@@ -18,27 +18,3 @@ class VoiceList(BaseModel):
     voices: list[str]
     default: str
     message: str
-
-
-class VoiceEntry(BaseModel):
-    voice: str
-    language: str
-    quality: str
-    size_mb: float
-    installed: bool
-
-
-class DownloadableVoices(BaseModel):
-    voices: list[VoiceEntry]
-    message: str
-
-
-class DownloadResult(BaseModel):
-    voice: str
-    size_mb: float
-    message: str
-
-
-class DeleteResult(BaseModel):
-    voice: str
-    message: str

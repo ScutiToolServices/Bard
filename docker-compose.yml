@@ -16,7 +16,6 @@ services:
       BARD_ENGINE: ${BARD_ENGINE:-piper}
       BARD_VOICE: ${BARD_VOICE:-}
       BARD_ADMIN_PASSWORD: ${BARD_ADMIN_PASSWORD:-}
-      EMBER_API_URL: http://ember_api:8030
     ports:
       - "${BARD_BIND:-0.0.0.0}:${BARD_PORT:-8090}:8090"
     volumes:

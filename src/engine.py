@@ -26,8 +26,6 @@ class Synthesis:
 class TtsEngine(Protocol):
     def voices(self) -> list[str]: ...
 
-    def unload(self, name: str) -> None: ...
-
     async def synthesize(self, text: str, voice: str) -> Synthesis: ...
 
 
@@ -55,11 +53,6 @@ class PiperEngine:
 
     def voices(self) -> list[str]:
         return sorted(p.name.removesuffix(".onnx") for p in self._dir.glob("*.onnx")) if self._dir.is_dir() else []
-
-    def unload(self, name: str) -> None:
-        """Drop a loaded voice so its files can be deleted."""
-        with self._load_lock:
-            self._loaded.pop(name, None)
 
     def _voice(self, name: str):
         with self._load_lock:
@@ -93,7 +86,7 @@ PARADEE_RATE = 24000
 
 class ParadeeEngine:
     """Paradee (an 8M-parameter model distilled from Kokoro) run in this process. Its four voices live in one
-    model file, so they cannot be installed or deleted one by one. The model downloads from Hugging Face on first use.
+    model file, so they cannot be installed one by one. The model downloads from Hugging Face on first use.
     `model` is injectable for tests: a callable `(text, voice=...)` returning float audio at 24 kHz."""
 
     def __init__(self, ffmpeg: str | Callable[[], str] = "ffmpeg", version: str = "1.2", model: object | None = None) -> None:
@@ -104,9 +97,6 @@ class ParadeeEngine:
 
     def voices(self) -> list[str]:
         return list(PARADEE_VOICES)
-
-    def unload(self, name: str) -> None:
-        """Nothing to drop: the voices are part of the one loaded model."""
 
     def _model(self):
         with self._load_lock:
@@ -154,9 +144,6 @@ class MultiEngine:
 
     def voices(self) -> list[str]:
         return self._piper.voices() + (self._paradee.voices() if self._paradee is not None else [])
-
-    def unload(self, name: str) -> None:
-        self._owner(name).unload(name)
 
     async def synthesize(self, text: str, voice: str) -> Synthesis:
         return await self._owner(voice).synthesize(text, voice)

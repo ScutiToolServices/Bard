@@ -30,22 +30,6 @@ def test_load_settings_reads_the_environment(monkeypatch, tmp_path):
     assert settings.internal_token == "secret"
 
 
-def test_admin_settings_default_to_local_ember_api_and_no_static_admins():
-    settings = Settings()
-    assert settings.ember_api_url == "http://127.0.0.1:8030"
-    assert settings.admins == frozenset()
-    assert settings.staging_dir.name == "staging"
-
-
-def test_load_settings_parses_admins_and_the_ember_api_url(monkeypatch, tmp_path):
-    monkeypatch.setenv("BARD_DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("BARD_ADMINS", " Ann, bob ,,")
-    monkeypatch.setenv("EMBER_API_URL", "http://ember.lan:8030/")
-    settings = load_settings()
-    assert settings.admins == frozenset({"ann", "bob"})
-    assert settings.ember_api_url == "http://ember.lan:8030"
-
-
 def test_engine_defaults_to_piper_and_paradee_brings_its_own_default_voice(monkeypatch, tmp_path):
     monkeypatch.setattr("src.config.load_dotenv", lambda *args, **kwargs: None)  # the real .env must not decide this test
     monkeypatch.setenv("BARD_DATA_DIR", str(tmp_path))
