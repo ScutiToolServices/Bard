@@ -1,16 +1,13 @@
-"""Text to MP3. Piper and Paradee are CPU-bound and blocking, so they run on a worker thread;
-ffmpeg runs as an asyncio subprocess."""
+"""Text to MP3. The speech comes from a TTSPiperModel and a TTSParadeeModel service chosen on the admin page;
+ffmpeg (WAV to MP3) runs here as an asyncio subprocess."""
 
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import io
-import threading
 import time
 import wave
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Callable, Protocol
 
 import httpx
@@ -48,95 +45,8 @@ async def encode_mp3(wav: bytes, ffmpeg: str) -> bytes:
     return out
 
 
-class PiperEngine:
-    def __init__(self, voices_dir: Path, ffmpeg: str | Callable[[], str] = "ffmpeg") -> None:
-        self._dir = Path(voices_dir)
-        self._ffmpeg = as_getter(ffmpeg)
-        self._loaded: dict[str, object] = {}
-        self._load_lock = threading.Lock()
-
-    def voices(self) -> list[str]:
-        return sorted(p.name.removesuffix(".onnx") for p in self._dir.glob("*.onnx")) if self._dir.is_dir() else []
-
-    def _voice(self, name: str):
-        with self._load_lock:
-            if name not in self._loaded:
-                path = self._dir / f"{name}.onnx"
-                if not path.is_file():
-                    raise VoiceUnavailable(f"Voice '{name}' is not installed.")
-                from piper import PiperVoice  # heavy import, only when a voice is first used
-
-                self._loaded[name] = PiperVoice.load(path)
-            return self._loaded[name]
-
-    def _wav(self, text: str, name: str) -> tuple[bytes, float]:
-        voice = self._voice(name)
-        buf = io.BytesIO()
-        with wave.open(buf, "wb") as wav:
-            voice.synthesize_wav(text, wav)
-            seconds = wav.getnframes() / wav.getframerate()
-        return buf.getvalue(), seconds
-
-    async def _mp3(self, wav: bytes) -> bytes:
-        return await encode_mp3(wav, self._ffmpeg())
-
-    async def synthesize(self, text: str, voice: str) -> Synthesis:
-        wav, seconds = await asyncio.to_thread(self._wav, text, voice)
-        return Synthesis(await self._mp3(wav), seconds)
-
-
-PARADEE_RATE = 24000
-
-
-class ParadeeEngine:
-    """Paradee (an 8M-parameter model distilled from Kokoro) run in this process. Its four voices live in one
-    model file, so they cannot be installed one by one. The model downloads from Hugging Face on first use.
-    `model` is injectable for tests: a callable `(text, voice=...)` returning float audio at 24 kHz."""
-
-    def __init__(self, ffmpeg: str | Callable[[], str] = "ffmpeg", version: str = "1.2", model: object | None = None) -> None:
-        self._ffmpeg = as_getter(ffmpeg)
-        self._version = version
-        self._model_obj = model
-        self._load_lock = threading.Lock()
-
-    def voices(self) -> list[str]:
-        return list(PARADEE_VOICES)
-
-    def _model(self):
-        with self._load_lock:
-            if self._model_obj is None:
-                from paradee import Paradee  # heavy import, only when the first text is spoken
-
-                model = Paradee(version=self._version, threads=1)
-                for voice in PARADEE_VOICES[:2]:
-                    model("Warm up.", voice=voice)  # builds the American and British phonemizers now
-                self._model_obj = model
-            return self._model_obj
-
-    def _wav(self, text: str, name: str) -> tuple[bytes, float]:
-        import numpy
-
-        audio = self._model()(text, voice=name)
-        if len(audio) == 0:
-            raise EngineFailed("No speech could be made from that text.")
-        pcm = (numpy.clip(audio, -1.0, 1.0) * 32767).astype("<i2")
-        buf = io.BytesIO()
-        with wave.open(buf, "wb") as wav:
-            wav.setnchannels(1)
-            wav.setsampwidth(2)
-            wav.setframerate(PARADEE_RATE)
-            wav.writeframes(pcm.tobytes())
-        return buf.getvalue(), len(pcm) / PARADEE_RATE
-
-    async def synthesize(self, text: str, voice: str) -> Synthesis:
-        if voice not in PARADEE_VOICES:
-            raise VoiceUnavailable(f"Voice '{voice}' is not installed.")
-        wav, seconds = await asyncio.to_thread(self._wav, text, voice)
-        return Synthesis(await encode_mp3(wav, self._ffmpeg()), seconds)
-
-
 class HttpTtsEngine:
-    """A TTSPiperModel or TTSParadeeModel service (AI/ModelServices) in place of the in-process engine: `POST /v1/speak`
+    """A TTSPiperModel or TTSParadeeModel service (AI/ModelServices): `POST /v1/speak`
     returns WAV, `GET /v1/voices` lists the voices the token may use. ffmpeg stays here (WAV to MP3).
     Needs a token when the service has an admin password; the token's "projects" list limits the voices.
 
@@ -187,19 +97,17 @@ class HttpTtsEngine:
 
 
 class SlotEngine:
-    """Piper or Paradee the way the admin page has it set right now: the model service at the slot's URL, or `local`
-    (the library in this process; None when it is not installed). The slot is read on every call, so a change on the
-    admin page applies to the next request."""
+    """Piper or Paradee the way the admin page has it set right now: the model service at the slot's address, or nothing
+    yet. The slot is read on every call, so a change on the admin page applies to the next request."""
 
-    def __init__(self, local: TtsEngine | None, slot: Callable[[], tuple[str, str] | None],
-                 ffmpeg: str | Callable[[], str] = "ffmpeg") -> None:
-        self._local, self._slot, self._ffmpeg = local, slot, ffmpeg
+    def __init__(self, slot: Callable[[], tuple[str, str] | None], ffmpeg: str | Callable[[], str] = "ffmpeg") -> None:
+        self._slot, self._ffmpeg = slot, ffmpeg
         self._remote: tuple[tuple[str, str], HttpTtsEngine] | None = None
 
-    def _engine(self) -> TtsEngine | None:
+    def _engine(self) -> HttpTtsEngine | None:
         wanted = self._slot()
         if wanted is None:
-            return self._local
+            return None
         if self._remote is None or self._remote[0] != wanted:
             self._remote = (wanted, HttpTtsEngine(wanted[0], wanted[1], self._ffmpeg))
         return self._remote[1]
@@ -215,7 +123,7 @@ class SlotEngine:
     async def synthesize(self, text: str, voice: str) -> Synthesis:
         engine = self._engine()
         if engine is None:
-            raise VoiceUnavailable(f"Voice '{voice}' is not installed.")
+            raise EngineFailed("No speech model service is connected. Save a connection on the Bard admin page.")
         return await engine.synthesize(text, voice)
 
 
@@ -234,15 +142,15 @@ class MultiEngine:
     """Routes each request to the engine that owns its voice, so the caller picks the engine by picking a voice.
     Voice names never overlap (Paradee's are fixed and lack the Piper `lang_REGION-name-quality` shape)."""
 
-    def __init__(self, piper: TtsEngine, paradee: TtsEngine | None = None) -> None:
+    def __init__(self, piper: TtsEngine, paradee: TtsEngine) -> None:
         self._piper = piper
         self._paradee = paradee
 
     def _owner(self, voice: str) -> TtsEngine:
-        return self._paradee if self._paradee is not None and voice in PARADEE_VOICES else self._piper
+        return self._paradee if voice in PARADEE_VOICES else self._piper
 
     def voices(self) -> list[str]:
-        return self._piper.voices() + (self._paradee.voices() if self._paradee is not None else [])
+        return self._piper.voices() + self._paradee.voices()
 
     async def synthesize(self, text: str, voice: str) -> Synthesis:
         return await self._owner(voice).synthesize(text, voice)
@@ -254,13 +162,8 @@ def make_backends(settings: Settings) -> Backends:
 
 
 def build_engine(settings: Settings, backends: Backends | None = None) -> TtsEngine:
-    """Each engine is the model service at its slot when the slot has a URL, otherwise the library run in this process.
-    BARD_ENGINE=paradee serves Paradee alone (its four voices) when it is available; otherwise Piper plus Paradee.
-    The choice of engines is made at start; the slots are read on every call."""
+    """Piper and Paradee, each the model service saved at its slot; with no address saved, calls fail with a hint to
+    connect one. The voice of each request picks the engine. The slots are read on every call."""
     backends = backends or make_backends(settings)
     ffmpeg = lambda: settings.ffmpeg  # noqa: E731
-    installed = importlib.util.find_spec("paradee") is not None
-    paradee = SlotEngine(ParadeeEngine(ffmpeg) if installed else None, lambda: backends.get("paradee"), ffmpeg)
-    if settings.engine == "paradee" and (installed or paradee.is_remote):
-        return paradee
-    return MultiEngine(SlotEngine(PiperEngine(settings.voices_dir, ffmpeg), lambda: backends.get("piper"), ffmpeg), paradee)
+    return MultiEngine(SlotEngine(lambda: backends.get("piper"), ffmpeg), SlotEngine(lambda: backends.get("paradee"), ffmpeg))

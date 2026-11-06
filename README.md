@@ -1,6 +1,6 @@
 # Bard
 
-Text to speech for Ember. Piper or Paradee (`BARD_ENGINE`) synthesizes an English voice on the CPU, ffmpeg encodes MP3, and Armory proxies the tools as the `bard` extension. Ember plays the result in chat through `GET /api/bard/audio/{file_id}`.
+Text to speech for Ember. A TTSPiperModel or TTSParadeeModel service synthesizes the voice, ffmpeg encodes MP3, and Armory proxies the tools as the `bard` extension. Ember plays the result in chat through `GET /api/bard/audio/{file_id}`.
 
 ## Tools
 
@@ -11,19 +11,19 @@ Text to speech for Ember. Piper or Paradee (`BARD_ENGINE`) synthesizes an Englis
 
 ## Engines
 
-With `BARD_ENGINE=paradee` (and the `paradee` extra installed) Bard serves Paradee alone, so `tool_bard_listVoices` and Ember's voice menu list only its four voices. With `piper` both engines run in the Bard process and are chosen per request: the `voice` picks the engine, and the list holds Piper voices plus Paradee's four when the extra is installed.
+Bard runs no speech engine itself. Connect a `TTSPiperModel` and/or a `TTSParadeeModel` service on the admin page first; until one is connected the voice list is empty and speaking fails. Both sit behind one list: the `voice` of each request picks the service, and the list holds the Piper voices the token may use plus Paradee's four when its service is connected.
 
-| | `piper` (default) | `paradee` |
+| | Piper | Paradee |
 | --- | --- | --- |
-| Voices | Any Piper voice, installed on the host with `python -m piper.download_voices`. | Four fixed voices in one 8.5 MB model: `af_heart` (default), `bf_isabella`, `am_puck`, `bm_fable`. |
+| Voices | Any voice installed on the TTSPiperModel service. | Four fixed voices in one 8.5 MB model: `af_heart` (default), `bf_isabella`, `am_puck`, `bm_fable`. |
 | Measured here | About 24x real time, 280 MB. | About 36x real time, 600 MB. |
 
-`BARD_VOICE` must name a voice of the chosen engine; Bard refuses to start when a Paradee setup names a Piper voice. Voice names differ between the engines, so cached audio from one engine is never served for the other. For Docker set `BARD_ENGINE=paradee` in `.env`: the build then installs the extra dependencies (the image is about 2.4 GB, against 1.5 GB for Piper).
+`BARD_VOICE` is the default voice (a Piper voice unless you name a Paradee one). Voice names differ between the engines, so cached audio from one engine is never served for the other. 
 
 ## Setup
 
 1. `uv sync` (`winget install astral-sh.uv` first if uv is missing)
-2. Piper only: download the voice: `uv run python -m piper.download_voices en_US-lessac-medium --download-dir .data/voices`. For Paradee run `uv sync --extra paradee` instead and set `BARD_ENGINE=paradee`.
+2. Start a `TTSPiperModel` (and optionally `TTSParadeeModel`) service and make a token for Bard on its admin page; its projects list must include every voice Bard offers.
 3. Copy `.env.example` to `.env` and set `INTERNAL_API_TOKEN` to the value Armory and ember_api use.
 4. `uv run python -m src.run`, then start Armory (it connects to Bard at startup, so Bard goes first).
 5. Register it in Armory's `configs/config_extensions.json` (see `config_extensions.json.example`, entry `bard`) and set `bard_url` in ember_api's `configs/config_app.json` if Bard is not on `http://127.0.0.1:8090`.
@@ -34,8 +34,7 @@ With `BARD_ENGINE=paradee` (and the `paradee` extra installed) Bard serves Parad
 | --- | --- | --- |
 | `INTERNAL_API_TOKEN` | empty | Shared token for `/mcp` and `/api/*`. Required when `BARD_HOST` is not loopback. |
 | `BARD_HOST` / `BARD_PORT` | `127.0.0.1` / `8090` | Listen address. |
-| `BARD_ENGINE` | `piper` | `piper` or `paradee`; see Engines. |
-| `BARD_VOICE` | `en_US-lessac-medium` (`af_heart` for Paradee) | Default voice. |
+| `BARD_VOICE` | `en_US-lessac-medium` | Default voice. |
 | `BARD_MAX_CHARS` | `5000` | Longest text accepted after Markdown is stripped. |
 | `BARD_TTL_HOURS` | `24` | How long audio is kept. |
 | `BARD_QUOTA_MB` | `200` | Audio storage per user. |
@@ -65,7 +64,7 @@ With `BARD_ADMIN_PASSWORD` set, `/admin/` (header `X-Admin-Password`) has four p
 
 - **Status**: what the service runs and for how long, plus the default voice and how many voices are installed.
 - **Usage**: calls, errors and average time per user since the service started (kept in memory, so a restart clears it).
-- **Model services**: Piper and Paradee each run in Bard or at a `TTSPiperModel` / `TTSParadeeModel` address (address and token are saved on the admin page only). Pick **In this service** or **A model service**, set the address and token, press **Test connection** (it calls the other service with that token), then **Save**. A change applies to the next call; the token is stored in `.data/backends.json`, never shown again, and `Use the environment value` drops the saved one (back to running in Bard).
+- **Model services**: Piper and Paradee each run at a `TTSPiperModel` / `TTSParadeeModel` address (address and token are saved on the admin page only; Bard has no local engine). Pick a saved connection or **Another address**, set the address and token, press **Test connection** (it calls the other service with that token), then **Save**. A change applies to the next call; the token is stored in `.data/backends.json`, never shown again, and `Use the environment value` drops the saved one (back to not connected).
 - **Settings**: the options saved in `.data/settings.json`.
 
 

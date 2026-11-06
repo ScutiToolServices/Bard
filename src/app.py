@@ -155,16 +155,16 @@ def build_app(
         except BardError:
             voices = "unavailable (a model service cannot be reached)"
         modes = [("Piper", "piper"), ("Paradee", "paradee")]
-        where = [{"label": label, "value": "model service" if backends.get(key) else "in this process"} for label, key in modes]
+        where = [{"label": label, "value": "model service" if backends.get(key) else "not connected"} for label, key in modes]
         return [{"label": "Default voice", "value": settings.voice}, {"label": "Voices", "value": voices}, *where]
 
     if config is not None:
         register(mcp, service="Bard", admin_password=base.admin_password, usage=usage, backends=backends, status=status,
                  playground=PLAYGROUND, slots=[
-            Slot("piper", "Piper", "Text to speech with Piper. Local runs the piper-tts library inside Bard (voices in .data/voices); "
-                 "a model service is a TTSPiperModel address.", probe_voices, "http://127.0.0.1:9150"),
-            Slot("paradee", "Paradee", "Text to speech with Paradee's four voices. Local needs the paradee extra installed; "
-                 "a model service is a TTSParadeeModel address.", probe_voices, "http://127.0.0.1:9160"),
+            Slot("piper", "Piper", "Text to speech with Piper: the address of a TTSPiperModel service. Its token's projects list must include every voice Bard offers.",
+                 probe_voices, "http://127.0.0.1:9150", local=False),
+            Slot("paradee", "Paradee", "Text to speech with Paradee's four voices: the address of a TTSParadeeModel service.",
+                 probe_voices, "http://127.0.0.1:9160", local=False),
         ])
 
         @mcp.custom_route("/admin/settings", methods=["GET", "PUT"])

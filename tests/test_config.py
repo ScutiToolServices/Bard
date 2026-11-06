@@ -25,33 +25,15 @@ def test_load_settings_reads_the_environment(monkeypatch, tmp_path):
     assert settings.port == 9123
     assert settings.ttl_seconds == 7200
     assert settings.quota_bytes == 5 * 1024 * 1024
-    assert settings.voices_dir == tmp_path / "voices"
     assert settings.audio_dir == tmp_path / "audio"
     assert settings.internal_token == "secret"
 
 
-def test_engine_defaults_to_piper_and_paradee_brings_its_own_default_voice(monkeypatch, tmp_path):
+def test_the_default_voice_is_a_piper_voice_unless_one_is_named(monkeypatch, tmp_path):
     monkeypatch.setattr("src.config.load_dotenv", lambda *args, **kwargs: None)  # the real .env must not decide this test
     monkeypatch.setenv("BARD_DATA_DIR", str(tmp_path))
-    monkeypatch.delenv("BARD_ENGINE", raising=False)
     monkeypatch.delenv("BARD_VOICE", raising=False)
-    assert (load_settings().engine, load_settings().voice) == ("piper", "en_US-lessac-medium")
-    monkeypatch.setenv("BARD_ENGINE", " Paradee ")
-    assert (load_settings().engine, load_settings().voice) == ("paradee", "af_heart")
+    assert load_settings().voice == "en_US-lessac-medium"
     monkeypatch.setenv("BARD_VOICE", "bm_fable")
     assert load_settings().voice == "bm_fable"
 
-
-def test_a_piper_voice_name_is_refused_for_paradee(monkeypatch):
-    monkeypatch.setattr("src.config.load_dotenv", lambda *args, **kwargs: None)
-    monkeypatch.setenv("BARD_ENGINE", "paradee")
-    monkeypatch.setenv("BARD_VOICE", "en_US-lessac-medium")
-    with pytest.raises(ValueError, match="not a Paradee voice"):
-        load_settings()
-
-
-def test_an_unknown_engine_is_refused(monkeypatch):
-    monkeypatch.setattr("src.config.load_dotenv", lambda *args, **kwargs: None)
-    monkeypatch.setenv("BARD_ENGINE", "kokoro")
-    with pytest.raises(ValueError, match="BARD_ENGINE"):
-        load_settings()

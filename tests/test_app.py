@@ -105,21 +105,6 @@ def test_voices_lists_only_installed_without_a_default(client):
     assert response.json() == {"voices": ["v1", "v2"]}
 
 
-def test_paradee_setting_serves_its_four_voices_and_speaks(tmp_path):
-    import shutil
-
-    from src.engine import ParadeeEngine
-    from tests.test_engine import FakeParadee
-
-    settings = Settings(data_dir=tmp_path, internal_token="tok", engine="paradee", voice="af_heart")
-    client = TestClient(build_app(settings, engine=ParadeeEngine(model=FakeParadee())))
-    assert client.get("/api/voices", headers=BOB).json() == {"voices": ["af_heart", "bf_isabella", "am_puck", "bm_fable"]}
-    assert client.post("/api/speak", json={"text": "Hello.", "voice": "en_US-lessac-medium"}, headers=BOB).status_code == 400
-    if shutil.which("ffmpeg"):
-        reply = client.post("/api/speak", json={"text": "Hello.", "voice": "bm_fable"}, headers=BOB)
-        assert reply.status_code == 200 and reply.json()["voice"] == "bm_fable" and reply.json()["duration_s"] == 0.5
-
-
 @pytest.fixture
 def admin_client(tmp_path):
     settings = Settings(data_dir=tmp_path, internal_token="tok", voice="v1", admin_password="pw")
@@ -167,9 +152,9 @@ def test_the_admin_page_shows_status_usage_and_the_piper_and_paradee_slots(admin
     assert client.post("/api/speak", json={"text": "hello there"}, headers=ANN).status_code == 200
     body = client.get("/admin/status", headers=pw).json()
     assert body["service"] == "Bard" and body["usage"]["calls"] == 1 and body["usage"]["users"][0]["user"] == "ann"
-    assert {"label": "Piper", "value": "in this process"} in body["items"]
+    assert {"label": "Piper", "value": "not connected"} in body["items"]
     slots = {s["key"]: s for s in client.get("/admin/backends", headers=pw).json()["backends"]}
-    assert set(slots) == {"piper", "paradee"} and slots["piper"]["mode"] == "local" and slots["piper"]["local"] is True
+    assert set(slots) == {"piper", "paradee"} and slots["piper"]["url"] == "" and slots["piper"]["local"] is False
     client.put("/admin/backends/piper", headers=pw, json={"url": "http://piper:9150", "token": "t"})
     assert {"label": "Piper", "value": "model service"} in client.get("/admin/status", headers=pw).json()["items"]
 
