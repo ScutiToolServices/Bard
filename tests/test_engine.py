@@ -214,13 +214,21 @@ def test_http_engine_voices_fail_when_the_service_was_never_reached(monkeypatch)
         HttpTtsEngine("http://piper:9150").voices()
 
 
-def test_build_engine_uses_the_model_services_when_their_urls_are_set(tmp_path):
-    both = build_engine(Settings(data_dir=tmp_path, piper_url="http://p:9150", paradee_url="http://d:9160"))
+def test_build_engine_uses_the_model_services_when_their_slots_have_addresses(tmp_path):
+    def slots(piper, paradee):
+        backends = Backends(tmp_path / "backends.json")
+        backends.reset("piper")
+        if piper:
+            backends.set("piper", "http://p:9150", "")
+        if paradee:
+            backends.set("paradee", "http://d:9160", "")
+        return backends
+    both = build_engine(Settings(data_dir=tmp_path), slots(True, True))
     assert isinstance(both, MultiEngine) and isinstance(both._piper._engine(), HttpTtsEngine)
     assert isinstance(both._paradee._engine(), HttpTtsEngine)
-    alone = build_engine(Settings(data_dir=tmp_path, engine="paradee", paradee_url="http://d:9160"))
+    alone = build_engine(Settings(data_dir=tmp_path, engine="paradee"), slots(False, True))
     assert isinstance(alone, SlotEngine) and alone.is_remote
-    local_piper = build_engine(Settings(data_dir=tmp_path, paradee_url="http://d:9160"))
+    local_piper = build_engine(Settings(data_dir=tmp_path), slots(False, True))
     assert isinstance(local_piper._piper._engine(), PiperEngine) and isinstance(local_piper._paradee._engine(), HttpTtsEngine)
 
 

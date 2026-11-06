@@ -29,12 +29,15 @@ def schema(base: Settings) -> list[Setting]:
         Setting("max_concurrent", "Speech jobs at once", "int", base.max_concurrent, minimum=1, maximum=16,
                 restart=True),
         Setting("ffmpeg", "ffmpeg program", "text", base.ffmpeg, blank=False, help="A name on PATH or a full path"),
+        Setting("data_path", "Data folder", "text", "", restart=True,
+                help=f"Where stored data (audio and voices) goes. Empty = {base.state_dir}. Applies after a restart; files already stored are not moved. "
+                     f"Settings and saved model connections stay in the standard folder."),
     ]
 
 
 def make_config(base: Settings) -> Config | None:
     """None, so nothing is changeable at run time, unless BARD_ADMIN_PASSWORD is set."""
-    return Config(base.data_dir / "settings.json", schema(base)) if base.admin_password else None
+    return Config(base.state_dir / "settings.json", schema(base)) if base.admin_password else None
 
 
 def live(base: Settings, config: Config | None):

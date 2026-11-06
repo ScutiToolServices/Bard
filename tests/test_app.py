@@ -173,9 +173,3 @@ def test_the_admin_page_shows_status_usage_and_the_piper_and_paradee_slots(admin
     client.put("/admin/backends/piper", headers=pw, json={"url": "http://piper:9150", "token": "t"})
     assert {"label": "Piper", "value": "model service"} in client.get("/admin/status", headers=pw).json()["items"]
 
-
-def test_the_slots_start_from_the_environment_settings(tmp_path):
-    settings = Settings(data_dir=tmp_path, voice="v1", admin_password="pw", piper_url="http://p:9150", piper_token="x")
-    client = TestClient(build_app(settings, engine=FakeEngine()))
-    slot = client.get("/admin/backends", headers={"X-Admin-Password": "pw"}).json()["backends"][0]
-    assert (slot["key"], slot["mode"], slot["url"], slot["token_set"], slot["source"]) == ("piper", "remote", "http://p:9150", True, "environment")

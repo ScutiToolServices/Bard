@@ -249,11 +249,8 @@ class MultiEngine:
 
 
 def make_backends(settings: Settings) -> Backends:
-    """The slots, starting from BARD_PIPER_URL / BARD_PARADEE_URL (and their tokens); the admin page can override them."""
-    return Backends(settings.data_dir / "backends.json", {
-        "piper": {"url": settings.piper_url, "token": settings.piper_token},
-        "paradee": {"url": settings.paradee_url, "token": settings.paradee_token},
-    })
+    """The model-service slots; addresses and tokens are saved on the admin page only."""
+    return Backends(settings.state_dir / "backends.json")
 
 
 def build_engine(settings: Settings, backends: Backends | None = None) -> TtsEngine:

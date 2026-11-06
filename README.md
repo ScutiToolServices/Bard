@@ -34,7 +34,6 @@ With `BARD_ENGINE=paradee` (and the `paradee` extra installed) Bard serves Parad
 | --- | --- | --- |
 | `INTERNAL_API_TOKEN` | empty | Shared token for `/mcp` and `/api/*`. Required when `BARD_HOST` is not loopback. |
 | `BARD_HOST` / `BARD_PORT` | `127.0.0.1` / `8090` | Listen address. |
-| `BARD_DATA_DIR` | `.data` | Holds `voices/` and `audio/` (both gitignored). |
 | `BARD_ENGINE` | `piper` | `piper` or `paradee`; see Engines. |
 | `BARD_VOICE` | `en_US-lessac-medium` (`af_heart` for Paradee) | Default voice. |
 | `BARD_MAX_CHARS` | `5000` | Longest text accepted after Markdown is stripped. |
@@ -42,8 +41,6 @@ With `BARD_ENGINE=paradee` (and the `paradee` extra installed) Bard serves Parad
 | `BARD_QUOTA_MB` | `200` | Audio storage per user. |
 | `BARD_MAX_CONCURRENT` | `1` | Simultaneous syntheses. |
 | `BARD_FFMPEG` | `ffmpeg` | ffmpeg executable. |
-| `BARD_PIPER_URL` / `BARD_PIPER_TOKEN` | empty | Use the `TTSPiperModel` service at this URL (sent `X-Internal-Token`) instead of running Piper in Bard. Voices then come from the service's `GET /v1/voices`; nothing is read from `.data/voices`. |
-| `BARD_PARADEE_URL` / `BARD_PARADEE_TOKEN` | empty | The same for `TTSParadeeModel`. The `paradee` extra is not needed then. |
 
 ## Notes
 
@@ -68,7 +65,7 @@ With `BARD_ADMIN_PASSWORD` set, `/admin/` (header `X-Admin-Password`) has four p
 
 - **Status**: what the service runs and for how long, plus the default voice and how many voices are installed.
 - **Usage**: calls, errors and average time per user since the service started (kept in memory, so a restart clears it).
-- **Model services**: Piper and Paradee each run in Bard or at a `TTSPiperModel` / `TTSParadeeModel` address (`BARD_PIPER_URL`, `BARD_PIPER_TOKEN`, `BARD_PARADEE_URL`, `BARD_PARADEE_TOKEN` are only the starting values). Pick **In this service** or **A model service**, set the address and token, press **Test connection** (it calls the other service with that token), then **Save**. A change applies to the next call; the token is stored in `.data/backends.json`, never shown again, and `Use the environment value` drops the saved one.
+- **Model services**: Piper and Paradee each run in Bard or at a `TTSPiperModel` / `TTSParadeeModel` address (address and token are saved on the admin page only). Pick **In this service** or **A model service**, set the address and token, press **Test connection** (it calls the other service with that token), then **Save**. A change applies to the next call; the token is stored in `.data/backends.json`, never shown again, and `Use the environment value` drops the saved one (back to running in Bard).
 - **Settings**: the options saved in `.data/settings.json`.
 
 
