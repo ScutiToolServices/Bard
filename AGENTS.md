@@ -8,9 +8,10 @@ This file is the one instruction file for every coding agent; `CLAUDE.md` only i
 ## Commands (from this folder, venv `.venv`, managed by uv)
 - Install: `uv sync` (`winget install astral-sh.uv` if missing; on this machine set `UV_CACHE_DIR=D:/User/.uv-cache`)
 - Test: `uv run pytest -q`
-- Run: `uv run python -m src.run`
+- Run: `run.bat run`, or `uv run python -m src.run`
 
 ## Rules
+- Follow the `tool-service-parity` skill and `AI/ToolServices/_docs/SHARED-FEATURES.md` (what must match in every tool service) and `AI/ToolServices/_docs/SERVICE-SPECIFIC.md` (what differs on purpose). A change to a shared feature goes to every tool service; a new difference goes into `SERVICE-SPECIFIC.md` in the same change.
 - Never read or print `.env`.
 - Data folder: `Settings.data_dir` holds audio and voices; the admin setting `data_path` (restart, `src/config.py` `with_saved_data_path`) moves it at the next start and keeps `settings.json` and `backends.json` in `Settings.state_dir` (the first folder). No `.env` variable; `BARD_DATA_DIR` is read only as the base folder (Docker).
 - Logic lives in `service.py`, `engine.py`, `store.py`; `app.py` is glue. Tools never call an AI.
@@ -24,3 +25,5 @@ This file is the one instruction file for every coding agent; `CLAUDE.md` only i
 - Model location: with an address saved for the `piper` / `paradee` slot on the admin page, that engine is `HttpTtsEngine` (in `src/engine.py`): `POST /v1/speak` to the `TTSPiperModel` / `TTSParadeeModel` service with the slot's saved token as `X-Internal-Token`; `GET /v1/voices` (kept 30 s) feeds `voices()`. ffmpeg (WAV to MP3) stays in Bard. No address = not connected: the voice list is empty and speaking fails. A service token's projects list must include every voice Bard offers. Remote failures become `EngineFailed` / `VoiceUnavailable` without the URL or the service's text.
 - Admin page (`web/index.html`, `src/admin_api.py`, `tests/test_admin_api.py`): the same three files in Bard, Scribe and Reader; change one, copy it to the other two. With `BARD_ADMIN_PASSWORD` set, `/admin/` shows status and usage per user (`GET /admin/status`, in-memory `Usage`, reset on restart), the model-service slots (`/admin/backends`: where Piper and Paradee (`piper` and `paradee` slots, `SlotEngine` in `src/engine.py`) runs, address + token saved in `.data/backends.json`, never sent back, read on every call) and the settings. Header `X-Admin-Password`. Each service passes its own slots, `status` items and probes to `register(...)` in `app.py`. Speak calls are counted through `usage.track` in `tool_bard_speak` and `/api/speak`.
 - Saved connections: the admin page also keeps a shared list of named model-service addresses (`/admin/connections/{name}`, under the reserved `_connections` key of `backends.json`, token never sent back). A slot picks one with `PUT /admin/backends/{key}` `{"connection": name}`, so editing a connection updates every slot using it; a connection a slot uses cannot be deleted (409). Addresses and tokens are saved only on the admin page (there are no environment variables for them); a slot with no address runs in this service, or fails when it has no local engine.
+- Behaviour changes update `README.md`, `deployment.md`, the guides in `docs/`, `.env.example`, `AGENTS.md` and `CHANGELOG.md` in the same commit.
+- Commit with the noreply author email `214214011+scutiii2@users.noreply.github.com` (another address is rejected on push). Push `main`, then run `python tools/publish_live.py`. Build Docker only when the Dockerfile or the dependencies changed.

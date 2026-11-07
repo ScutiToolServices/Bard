@@ -75,6 +75,7 @@ Enter the requester username that will own the generated audio, choose an instal
 
 ## Documentation
 
+- [Purpose: input, output and what it is for](docs/purpose.md)
 - [Deployment](deployment.md)
 - [Changelog](CHANGELOG.md)
 - [Docker on this PC](docs/guide-docker-same-device.md)
