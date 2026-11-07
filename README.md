@@ -67,7 +67,6 @@ With `BARD_ADMIN_PASSWORD` set, `/admin/` (header `X-Admin-Password`) has four p
 - **Model services**: Piper and Paradee each run at a `TTSPiperModel` / `TTSParadeeModel` address (address and token are saved on the admin page only; Bard has no local engine). Pick a saved connection or **Another address**, set the address and token, press **Test connection** (it calls the other service with that token), then **Save**. A change applies to the next call; the token is stored in `.data/backends.json`, never shown again, and `Use the environment value` drops the saved one (back to not connected).
 - **Settings**: the options saved in `.data/settings.json`.
 
-
 ## Try it from the admin page
 
 Open `/admin/` and use **Try it** with the service's internal API token and a requester username. The token is held only in memory, separate from admin sign-in. Requests use the ordinary public API, quotas and cache; the panel shows HTTP status, latency, output, cancellation and curl with a token placeholder. See [the web UI guide](docs/guide-web-ui.md).
@@ -78,3 +77,6 @@ Enter the requester username that will own the generated audio, choose an instal
 
 - [Deployment](deployment.md)
 - [Changelog](CHANGELOG.md)
+- [Docker on this PC](docs/guide-docker-same-device.md)
+- [Docker on another machine](docs/guide-docker-deployment-device.md)
+- [Run without Docker](docs/guide-no-docker-same-device.md)
