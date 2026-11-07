@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Breaking: common service environment variables
+
+Service-owned environment variables now use `SERVICE_*`. Old names are no longer read.
+Rename old names once in your real `.env`, Compose `environment:` block, and CI/secret settings.
+
+| Old name | New name |
+|---|---|
+| `BARD_ADMIN_PASSWORD` | `SERVICE_ADMIN_PASSWORD` |
+| `BARD_BIND` | `SERVICE_BIND` |
+| `BARD_DATA_DIR` | `SERVICE_DATA_DIR` |
+| `BARD_FFMPEG` | `SERVICE_FFMPEG` |
+| `BARD_HOST` | `SERVICE_HOST` |
+| `BARD_MAX_CHARS` | `SERVICE_MAX_CHARS` |
+| `BARD_MAX_CONCURRENT` | `SERVICE_MAX_CONCURRENT` |
+| `BARD_PORT` | `SERVICE_PORT` |
+| `BARD_QUOTA_MB` | `SERVICE_QUOTA_MB` |
+| `BARD_TTL_HOURS` | `SERVICE_TTL_HOURS` |
+| `BARD_VOICE` | `SERVICE_VOICE` |
+| `BARD_WEB_DIR` | `SERVICE_WEB_DIR` |
+
 - Default service port moves from 8090 to 29400. Update any explicit port in your real `.env`, saved model-service connections in `backends.json`, and browser or MCP client configurations once; model-service connection ports also move to the new model port blocks. Docker users who used the Compose default receive the new host and container ports together; explicit host-port overrides remain in effect until changed.
 - Model connection labels, Docker CONNECT hosts and documentation use the purpose-prefixed model-service names. Update saved model-service connections to the renamed load balancer hosts using the current connection defaults.
 

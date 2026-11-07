@@ -16,10 +16,10 @@ def test_exposed_without_token_only_beyond_loopback():
 
 
 def test_load_settings_reads_the_environment(monkeypatch, tmp_path):
-    monkeypatch.setenv("BARD_PORT", "9123")
-    monkeypatch.setenv("BARD_TTL_HOURS", "2")
-    monkeypatch.setenv("BARD_QUOTA_MB", "5")
-    monkeypatch.setenv("BARD_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("SERVICE_PORT", "9123")
+    monkeypatch.setenv("SERVICE_TTL_HOURS", "2")
+    monkeypatch.setenv("SERVICE_QUOTA_MB", "5")
+    monkeypatch.setenv("SERVICE_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("INTERNAL_API_TOKEN", "secret")
     settings = load_settings()
     assert settings.port == 9123
@@ -30,9 +30,9 @@ def test_load_settings_reads_the_environment(monkeypatch, tmp_path):
 
 
 def test_the_default_voice_is_a_piper_voice_unless_one_is_named(monkeypatch, tmp_path):
-    monkeypatch.setenv("BARD_DATA_DIR", str(tmp_path))
-    monkeypatch.delenv("BARD_VOICE", raising=False)
+    monkeypatch.setenv("SERVICE_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("SERVICE_VOICE", raising=False)
     assert load_settings().voice == "en_US-lessac-medium"
-    monkeypatch.setenv("BARD_VOICE", "bm_fable")
+    monkeypatch.setenv("SERVICE_VOICE", "bm_fable")
     assert load_settings().voice == "bm_fable"
 

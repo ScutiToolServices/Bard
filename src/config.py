@@ -50,19 +50,19 @@ DEFAULT_VOICE = "en_US-lessac-medium"  # a Piper voice; the voice of each reques
 
 def _from_environment() -> Settings:
     env = os.environ.get
-    voice = env("BARD_VOICE") or DEFAULT_VOICE
+    voice = env("SERVICE_VOICE") or DEFAULT_VOICE
     return Settings(
-        host=env("BARD_HOST", "127.0.0.1"),
-        port=int(env("BARD_PORT", "29400")),
+        host=env("SERVICE_HOST", "127.0.0.1"),
+        port=int(env("SERVICE_PORT", "29400")),
         internal_token=env("INTERNAL_API_TOKEN", ""),
-        data_dir=Path(env("BARD_DATA_DIR") or PROJECT_DIR / ".data"),
+        data_dir=Path(env("SERVICE_DATA_DIR") or PROJECT_DIR / ".data"),
         voice=voice,
-        ffmpeg=env("BARD_FFMPEG", "ffmpeg"),
-        max_chars=int(env("BARD_MAX_CHARS", "5000")),
-        ttl_seconds=int(env("BARD_TTL_HOURS", "24")) * 3600,
-        quota_bytes=int(env("BARD_QUOTA_MB", "200")) * 1024 * 1024,
-        max_concurrent=int(env("BARD_MAX_CONCURRENT", "1")),
-        admin_password=env("BARD_ADMIN_PASSWORD", ""),
+        ffmpeg=env("SERVICE_FFMPEG", "ffmpeg"),
+        max_chars=int(env("SERVICE_MAX_CHARS", "5000")),
+        ttl_seconds=int(env("SERVICE_TTL_HOURS", "24")) * 3600,
+        quota_bytes=int(env("SERVICE_QUOTA_MB", "200")) * 1024 * 1024,
+        max_concurrent=int(env("SERVICE_MAX_CONCURRENT", "1")),
+        admin_password=env("SERVICE_ADMIN_PASSWORD", ""),
     )
 
 

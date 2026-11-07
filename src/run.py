@@ -21,7 +21,7 @@ def main() -> None:
             print(".env: no file in the service folder", flush=True)
     settings = load_settings()
     if settings.exposed_without_token:
-        sys.exit("Bard refuses to start: BARD_HOST is not a loopback address and INTERNAL_API_TOKEN is empty.")
+        sys.exit("Bard refuses to start: SERVICE_HOST is not a loopback address and INTERNAL_API_TOKEN is empty.")
     uvicorn.run(build_app(settings), host=settings.host, port=settings.port, log_level="info")
 
 

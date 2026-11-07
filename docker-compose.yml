@@ -10,10 +10,10 @@ services:
     restart: unless-stopped
     environment:
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in .env}
-      BARD_VOICE: ${BARD_VOICE:-}
-      BARD_ADMIN_PASSWORD: ${BARD_ADMIN_PASSWORD:-}
+      SERVICE_VOICE: ${SERVICE_VOICE:-}
+      SERVICE_ADMIN_PASSWORD: ${SERVICE_ADMIN_PASSWORD:-}
     ports:
-      - "${BARD_BIND:-0.0.0.0}:${BARD_PORT:-29400}:29400"
+      - "${SERVICE_BIND:-0.0.0.0}:${SERVICE_PORT:-29400}:29400"
     volumes:
       - bard_data:/data
     healthcheck:

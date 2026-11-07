@@ -18,7 +18,7 @@ Bard runs no speech engine itself. Connect a `TTS_Piper_Model` and/or a `TTS_Par
 | Voices | Any voice installed on the TTS_Piper_Model service. | Four fixed voices in one 8.5 MB model: `af_heart` (default), `bf_isabella`, `am_puck`, `bm_fable`. |
 | Measured here | About 24x real time, 280 MB. | About 36x real time, 600 MB. |
 
-`BARD_VOICE` is the default voice (a Piper voice unless you name a Paradee one). Voice names differ between the engines, so cached audio from one engine is never served for the other. 
+`SERVICE_VOICE` is the default voice (a Piper voice unless you name a Paradee one). Voice names differ between the engines, so cached audio from one engine is never served for the other. 
 
 ## Setup
 
@@ -32,14 +32,14 @@ Bard runs no speech engine itself. Connect a `TTS_Piper_Model` and/or a `TTS_Par
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `INTERNAL_API_TOKEN` | empty | Shared token for `/mcp` and `/api/*`. Required when `BARD_HOST` is not loopback. |
-| `BARD_HOST` / `BARD_PORT` | `127.0.0.1` / `29400` | Listen address. |
-| `BARD_VOICE` | `en_US-lessac-medium` | Default voice. |
-| `BARD_MAX_CHARS` | `5000` | Longest text accepted after Markdown is stripped. |
-| `BARD_TTL_HOURS` | `24` | How long audio is kept. |
-| `BARD_QUOTA_MB` | `200` | Audio storage per user. |
-| `BARD_MAX_CONCURRENT` | `1` | Simultaneous syntheses. |
-| `BARD_FFMPEG` | `ffmpeg` | ffmpeg executable. |
+| `INTERNAL_API_TOKEN` | empty | Shared token for `/mcp` and `/api/*`. Required when `SERVICE_HOST` is not loopback. |
+| `SERVICE_HOST` / `SERVICE_PORT` | `127.0.0.1` / `29400` | Listen address. |
+| `SERVICE_VOICE` | `en_US-lessac-medium` | Default voice. |
+| `SERVICE_MAX_CHARS` | `5000` | Longest text accepted after Markdown is stripped. |
+| `SERVICE_TTL_HOURS` | `24` | How long audio is kept. |
+| `SERVICE_QUOTA_MB` | `200` | Audio storage per user. |
+| `SERVICE_MAX_CONCURRENT` | `1` | Simultaneous syntheses. |
+| `SERVICE_FFMPEG` | `ffmpeg` | ffmpeg executable. |
 
 ## Notes
 
@@ -60,7 +60,7 @@ A plain publish (`run.bat`, Deploy, option 1) only updates the `live` branch, so
 
 ## Admin page
 
-With `BARD_ADMIN_PASSWORD` set, `/admin/` (header `X-Admin-Password`) has four parts:
+With `SERVICE_ADMIN_PASSWORD` set, `/admin/` (header `X-Admin-Password`) has four parts:
 
 - **Status**: what the service runs and for how long, plus the default voice and how many voices are installed.
 - **Usage**: calls, errors and average time per user since the service started (kept in memory, so a restart clears it).
