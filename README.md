@@ -25,7 +25,7 @@ Bard runs no speech engine itself. Connect a `TTSPiperModel` and/or a `TTSParade
 1. `uv sync` (`winget install astral-sh.uv` first if uv is missing)
 2. Start a `TTSPiperModel` (and optionally `TTSParadeeModel`) service and make a token for Bard on its admin page; its projects list must include every voice Bard offers.
 3. Copy `.env.example` to `.env` and set `INTERNAL_API_TOKEN` to the value Armory and ember_api use.
-4. `uv run python -m src.run`, then start Armory (it connects to Bard at startup, so Bard goes first).
+4. `run.bat run` (loads `.env`; `uv run python -m src.run --dotenv` does the same), then start Armory (it connects to Bard at startup, so Bard goes first).
 5. Register it in Armory's `configs/config_extensions.json` (see `config_extensions.json.example`, entry `bard`) and set `bard_url` in ember_api's `configs/config_app.json` if Bard is not on `http://127.0.0.1:8090`.
 
 ## Configuration

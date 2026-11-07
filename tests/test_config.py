@@ -30,7 +30,6 @@ def test_load_settings_reads_the_environment(monkeypatch, tmp_path):
 
 
 def test_the_default_voice_is_a_piper_voice_unless_one_is_named(monkeypatch, tmp_path):
-    monkeypatch.setattr("src.config.load_dotenv", lambda *args, **kwargs: None)  # the real .env must not decide this test
     monkeypatch.setenv("BARD_DATA_DIR", str(tmp_path))
     monkeypatch.delenv("BARD_VOICE", raising=False)
     assert load_settings().voice == "en_US-lessac-medium"

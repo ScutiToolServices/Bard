@@ -8,7 +8,6 @@ import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from dotenv import load_dotenv
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -50,7 +49,6 @@ DEFAULT_VOICE = "en_US-lessac-medium"  # a Piper voice; the voice of each reques
 
 
 def _from_environment() -> Settings:
-    load_dotenv(PROJECT_DIR / ".env")
     env = os.environ.get
     voice = env("BARD_VOICE") or DEFAULT_VOICE
     return Settings(
