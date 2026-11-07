@@ -17,6 +17,7 @@ sync_api = pytest.importorskip("playwright.sync_api")
 from src.app import build_app
 from src.config import Settings
 from tests.fakes import FakeEngine
+from tests.seed import seed_token
 
 TOKEN = "playground-service-token"
 PASSWORD = "playground-admin-password"
@@ -29,7 +30,7 @@ def engine():
 
 @pytest.fixture
 def base_url(tmp_path, engine):
-    app = build_app(Settings(data_dir=tmp_path, internal_token=TOKEN, admin_password=PASSWORD, voice="v1"), engine)
+    app = build_app(seed_token(Settings(data_dir=tmp_path, admin_password=PASSWORD, voice="v1"), TOKEN), engine)
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
@@ -91,5 +92,5 @@ def test_playground_reports_public_auth_failure(page):
     page.fill("#pg-text", "Hello browser")
     page.click("#pg-send")
     sync_api.expect(page.locator("#pg-status")).to_contain_text("HTTP 401")
-    sync_api.expect(page.locator("#pg-output")).to_contain_text("Invalid or missing internal API token")
+    sync_api.expect(page.locator("#pg-output")).to_contain_text("Invalid or missing token")
     assert page.locator("#panel").is_visible()

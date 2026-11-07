@@ -17,7 +17,6 @@ LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 class Settings:
     host: str = "127.0.0.1"
     port: int = 29400
-    internal_token: str = ""
     data_dir: Path = PROJECT_DIR / ".data"
     config_dir: Path | None = None  # set when the data folder was moved: the folder that keeps settings.json
     voice: str = "en_US-lessac-medium"
@@ -39,9 +38,9 @@ class Settings:
         return self.data_dir / "audio"
 
     @property
-    def exposed_without_token(self) -> bool:
-        """Listening beyond loopback with no token lets anything that can reach the port call every tool."""
-        return not self.internal_token and self.host not in LOOPBACK_HOSTS
+    def exposed_without_auth(self) -> bool:
+        """Listening beyond loopback with no admin password means no tokens, so anything that can reach the port could call every tool."""
+        return not self.admin_password.strip() and self.host not in LOOPBACK_HOSTS
 
 
 PARADEE_VOICES = ("af_heart", "bf_isabella", "am_puck", "bm_fable")  # the four voices of Paradee 1.2
@@ -54,8 +53,7 @@ def _from_environment() -> Settings:
     return Settings(
         host=env("SERVICE_HOST", "127.0.0.1"),
         port=int(env("SERVICE_PORT", "29400")),
-        internal_token=env("INTERNAL_API_TOKEN", ""),
-        data_dir=Path(env("SERVICE_DATA_DIR") or PROJECT_DIR / ".data"),
+                data_dir=Path(env("SERVICE_DATA_DIR") or PROJECT_DIR / ".data"),
         voice=voice,
         ffmpeg=env("SERVICE_FFMPEG", "ffmpeg"),
         max_chars=int(env("SERVICE_MAX_CHARS", "5000")),

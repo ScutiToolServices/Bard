@@ -5,6 +5,7 @@ from src.app import build_app
 from src.config import Settings
 from src.store import AudioStore
 from tests.fakes import FakeEngine
+from tests.seed import seed_token
 
 TOKEN = {"X-Internal-Token": "tok"}
 BOB = {**TOKEN, "X-Requester-Username": "bob"}
@@ -13,7 +14,7 @@ ANN = {**TOKEN, "X-Requester-Username": "ann"}
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(data_dir=tmp_path, internal_token="tok", voice="v1")
+    return seed_token(Settings(data_dir=tmp_path, admin_password="pw", voice="v1"))
 
 
 @pytest.fixture
@@ -34,7 +35,7 @@ def test_health_needs_no_token(client):
     assert response.status_code == 200 and response.json() == {"ok": True, "ready": False}
 
 
-def test_files_require_the_internal_token(client, file_id):
+def test_files_require_a_token(client, file_id):
     response = client.get(f"/api/files/{file_id}", headers={"X-Requester-Username": "ann"})
     assert response.status_code == 401
     assert client.get(f"/api/files/{file_id}", headers={"X-Internal-Token": "wrong", "X-Requester-Username": "ann"}).status_code == 401
@@ -66,8 +67,8 @@ def test_another_owner_a_missing_id_and_a_malformed_id_all_answer_404(client, fi
     assert client.get("/api/files/not-an-id", headers=ANN).status_code == 404
 
 
-def test_without_a_configured_token_the_routes_are_open(tmp_path):
-    settings = Settings(data_dir=tmp_path, internal_token="", voice="v1")
+def test_without_an_admin_password_the_routes_are_open(tmp_path):
+    settings = Settings(data_dir=tmp_path, voice="v1")
     store = AudioStore(settings.audio_dir, settings.ttl_seconds, settings.quota_bytes)
     fid = AudioStore.file_id("v1", "hello")
     store.put("ann", fid, b"abc", "v1", 1.0)
@@ -107,11 +108,12 @@ def test_voices_lists_only_installed_without_a_default(client):
 
 @pytest.fixture
 def admin_client(tmp_path):
-    settings = Settings(data_dir=tmp_path, internal_token="tok", voice="v1", admin_password="pw")
+    settings = seed_token(Settings(data_dir=tmp_path, voice="v1", admin_password="pw"))
     return TestClient(build_app(settings, engine=FakeEngine())), tmp_path
 
 
-def test_admin_is_off_without_a_password(client):
+def test_admin_is_off_without_a_password(tmp_path):
+    client = TestClient(build_app(Settings(data_dir=tmp_path, voice="v1"), engine=FakeEngine()))
     assert client.get("/admin/settings").status_code in (404, 405)
 
 
@@ -140,7 +142,7 @@ def test_admin_refuses_bad_values_and_unknown_voices(admin_client):
     assert client.put("/admin/settings", json={"oops": 1}, headers=auth).status_code == 422
 
 
-def test_admin_page_is_served_without_the_internal_token(admin_client):
+def test_admin_page_is_served_without_a_token(admin_client):
     client, _ = admin_client
     assert client.get("/admin/").status_code == 200
 

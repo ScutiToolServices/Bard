@@ -24,7 +24,8 @@ from src.contract import SpeakResult, VoiceList
 from src.engine import TtsEngine, build_engine, make_backends, probe_voices
 from src.errors import BardError, EngineFailed, IdentityRequired, QuotaExceeded
 from src.identity import owner_from_context
-from src.middleware import InternalTokenMiddleware
+from src.middleware import TokenMiddleware
+from src.tokens import TokenStore
 from src.options import live, make_config
 from src.runtime import Config
 from src.service import BardService
@@ -102,6 +103,7 @@ def build_app(
     config = config if config is not None else make_config(settings)
     base, settings = settings, live(settings, config)
     backends = make_backends(base)
+    tokens = TokenStore(base.state_dir / "tokens.json", "bard_")
     usage = Usage()
     engine = engine or build_engine(base, backends)
     store = AudioStore(base.audio_dir, lambda: settings.ttl_seconds, lambda: settings.quota_bytes)
@@ -192,7 +194,7 @@ def build_app(
         return [{"label": "Default voice", "value": settings.voice}, {"label": "Voices", "value": voices}, *where]
 
     if config is not None:
-        register(mcp, connect=CONNECT, service="Bard", admin_password=base.admin_password, usage=usage, backends=backends, status=status,
+        register(mcp, connect=CONNECT, service="Bard", admin_password=base.admin_password, usage=usage, backends=backends, tokens=tokens, status=status,
                  playground=PLAYGROUND, slots=[
             Slot("piper", "Piper", "Text to speech with Piper: the address of a TTS_Piper_Model service. Its token's projects list must include every voice Bard offers.",
                  probe_voices, "http://127.0.0.1:29320", local=False),
@@ -224,5 +226,5 @@ def build_app(
     app = mcp.streamable_http_app()
     if config is not None and WEB_DIR.is_dir():
         app.router.routes.append(Mount("/admin", StaticFiles(directory=WEB_DIR, html=True)))
-    app.add_middleware(InternalTokenMiddleware, token=settings.internal_token)
+    app.add_middleware(TokenMiddleware, tokens=tokens if base.admin_password else None)
     return app

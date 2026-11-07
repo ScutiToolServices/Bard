@@ -1,6 +1,6 @@
 # Bard text-to-speech MCP server.
 # Start:  docker compose up -d --build        (armory reaches it at http://bard:29400/mcp)
-# Needs a .env next to this file with INTERNAL_API_TOKEN (same value as Citadel's); see .env.example.
+# Needs a .env next to this file with SERVICE_ADMIN_PASSWORD; create the callers' tokens on /admin/. See .env.example.
 
 name: bard
 
@@ -9,9 +9,8 @@ services:
     build: .
     restart: unless-stopped
     environment:
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in .env}
       SERVICE_VOICE: ${SERVICE_VOICE:-}
-      SERVICE_ADMIN_PASSWORD: ${SERVICE_ADMIN_PASSWORD:-}
+      SERVICE_ADMIN_PASSWORD: ${SERVICE_ADMIN_PASSWORD:?set SERVICE_ADMIN_PASSWORD in .env (it unlocks the token page)}
     ports:
       - "${SERVICE_BIND:-0.0.0.0}:${SERVICE_PORT:-29400}:29400"
     volumes:
