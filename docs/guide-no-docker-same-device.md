@@ -1,6 +1,6 @@
 # Bard: without Docker, on Windows
 
-Run Bard directly with Python: one process, no load balancer, listening on `127.0.0.1:8090`.
+Run Bard directly with Python: one process, no load balancer, listening on `127.0.0.1:29400`.
 
 ## Requirements
 
@@ -21,14 +21,14 @@ uv run python -m src.run
 ## Check
 
 ```bash
-curl http://127.0.0.1:8090/health
+curl http://127.0.0.1:29400/health
 ```
 
 Then open `/admin/`, save a connection to the TTS_Piper_Model (and optionally TTS_Paradee_Model) service under **Model services**, and press **Test connection**.
 
 ## Stop
 
-Ctrl+C in the terminal. Do not run this and the Docker stack together: both use port 8090.
+Ctrl+C in the terminal. Do not run this and the Docker stack together: both use port 29400.
 
 ## Tests
 

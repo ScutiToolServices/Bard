@@ -1,6 +1,6 @@
 # Bard
 
-Text-to-speech MCP server for Citadel and Ember. A standalone service on port 8090, registered in Armory as the `bard` extension. Design: `Python/Citadel/docs/superpowers/specs/2026-10-25-bard-design.md`.
+Text-to-speech MCP server for Citadel and Ember. A standalone service on port 29400, registered in Armory as the `bard` extension. Design: `Python/Citadel/docs/superpowers/specs/2026-10-25-bard-design.md`.
 
 ## Agent instructions
 This file is the one instruction file for every coding agent; `CLAUDE.md` only imports it (`@AGENTS.md`). Edit this file, never `CLAUDE.md`.

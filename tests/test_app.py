@@ -155,6 +155,6 @@ def test_the_admin_page_shows_status_usage_and_the_piper_and_paradee_slots(admin
     assert {"label": "Piper", "value": "not connected"} in body["items"]
     slots = {s["key"]: s for s in client.get("/admin/backends", headers=pw).json()["backends"]}
     assert set(slots) == {"piper", "paradee"} and slots["piper"]["url"] == "" and slots["piper"]["local"] is False
-    client.put("/admin/backends/piper", headers=pw, json={"url": "http://piper:9150", "token": "t"})
+    client.put("/admin/backends/piper", headers=pw, json={"url": "http://piper:29320", "token": "t"})
     assert {"label": "Piper", "value": "model service"} in client.get("/admin/status", headers=pw).json()["items"]
 

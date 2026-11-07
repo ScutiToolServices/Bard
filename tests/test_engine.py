@@ -58,8 +58,8 @@ async def test_http_engine_posts_text_and_voice_with_the_token_and_returns_mp3(m
         return httpx.Response(200, content=silent_wav(0.5), headers={"content-type": "audio/wav"})
 
     remote(monkeypatch, handler)
-    result = await HttpTtsEngine("http://piper:9150/", "ttspiper_x").synthesize("hello", "en_US-a")
-    assert seen["url"] == "http://piper:9150/v1/speak" and seen["token"] == "ttspiper_x"
+    result = await HttpTtsEngine("http://piper:29320/", "ttspiper_x").synthesize("hello", "en_US-a")
+    assert seen["url"] == "http://piper:29320/v1/speak" and seen["token"] == "ttspiper_x"
     assert b'"voice":"en_US-a"' in seen["body"].replace(b" ", b"") and b'"text":"hello"' in seen["body"].replace(b" ", b"")
     assert result.mp3.startswith(b"mp3:RIFF") and abs(result.duration_s - 0.5) < 0.01
 
@@ -69,20 +69,20 @@ async def test_http_engine_posts_text_and_voice_with_the_token_and_returns_mp3(m
 async def test_http_engine_maps_failures_to_safe_errors(monkeypatch, status, error):
     remote(monkeypatch, lambda request: httpx.Response(status, json={"detail": "boom at /secret/path"}))
     with pytest.raises(error) as raised:
-        await HttpTtsEngine("http://piper:9150").synthesize("hi", "v")
+        await HttpTtsEngine("http://piper:29320").synthesize("hi", "v")
     assert "secret" not in str(raised.value) and "piper" not in str(raised.value)
 
 
 async def test_http_engine_unreachable_service_and_bad_audio_are_engine_failed(monkeypatch):
     def refuse(request):
-        raise httpx.ConnectError("refused http://piper:9150")
+        raise httpx.ConnectError("refused http://piper:29320")
 
     remote(monkeypatch, refuse)
     with pytest.raises(EngineFailed):
-        await HttpTtsEngine("http://piper:9150").synthesize("hi", "v")
+        await HttpTtsEngine("http://piper:29320").synthesize("hi", "v")
     remote(monkeypatch, lambda request: httpx.Response(200, content=b"not a wav"))
     with pytest.raises(EngineFailed):
-        await HttpTtsEngine("http://piper:9150").synthesize("hi", "v")
+        await HttpTtsEngine("http://piper:29320").synthesize("hi", "v")
 
 
 def test_http_engine_lists_the_voices_the_token_may_use_and_keeps_them_a_while(monkeypatch):
@@ -95,7 +95,7 @@ def test_http_engine_lists_the_voices_the_token_may_use_and_keeps_them_a_while(m
         return httpx.Response(200, json={"voices": ["a", "b"], "default": "a"})
 
     remote(monkeypatch, handler)
-    engine = HttpTtsEngine("http://piper:9150", "t")
+    engine = HttpTtsEngine("http://piper:29320", "t")
     assert engine.voices() == ["a", "b"] and engine.voices() == ["a", "b"] and calls == ["t"]  # second call is from the cache
     engine._voices_at -= 60
     assert engine.voices() == ["a", "b"] and len(calls) == 2  # service failing: the last list stays
@@ -104,15 +104,15 @@ def test_http_engine_lists_the_voices_the_token_may_use_and_keeps_them_a_while(m
 def test_http_engine_voices_fail_when_the_service_was_never_reached(monkeypatch):
     remote(monkeypatch, lambda request: httpx.Response(500))
     with pytest.raises(EngineFailed):
-        HttpTtsEngine("http://piper:9150").voices()
+        HttpTtsEngine("http://piper:29320").voices()
 
 
 def test_build_engine_uses_the_model_services_saved_at_their_slots(tmp_path):
     backends = Backends(tmp_path / "backends.json")
     nothing = build_engine(Settings(data_dir=tmp_path), backends)
     assert isinstance(nothing, MultiEngine) and nothing.voices() == []
-    backends.set("piper", "http://p:9150", "")
-    backends.set("paradee", "http://d:9160", "")
+    backends.set("piper", "http://p:29320", "")
+    backends.set("paradee", "http://d:29321", "")
     both = build_engine(Settings(data_dir=tmp_path), backends)
     assert isinstance(both._piper._engine(), HttpTtsEngine) and isinstance(both._paradee._engine(), HttpTtsEngine)
 
@@ -126,8 +126,8 @@ async def test_the_voice_picks_the_slot(tmp_path, monkeypatch):
 
     remote(monkeypatch, handler)
     backends = Backends(tmp_path / "backends.json")
-    backends.set("piper", "http://piper:9150", "")
-    backends.set("paradee", "http://paradee:9160", "")
+    backends.set("piper", "http://piper:29320", "")
+    backends.set("paradee", "http://paradee:29321", "")
     engine = build_engine(Settings(data_dir=tmp_path), backends)
     await engine.synthesize("Hello.", "en_US-a")
     await engine.synthesize("Hello.", "af_heart")
@@ -139,11 +139,11 @@ def test_a_slot_changed_on_the_admin_page_applies_to_the_next_call(tmp_path, mon
     slot = SlotEngine(lambda: backends.get("piper"))
     assert slot.voices() == [] and slot._engine() is None and not slot.is_remote
     remote(monkeypatch, lambda request: httpx.Response(200, json={"voices": ["x", "y"]}))
-    backends.set("piper", "http://piper:9150", "t")
+    backends.set("piper", "http://piper:29320", "t")
     assert slot.voices() == ["x", "y"] and slot.is_remote and isinstance(slot._engine(), HttpTtsEngine)
     first = slot._engine()
     assert slot._engine() is first  # the same address and token reuse the client
-    backends.set("piper", "http://other:9150", None)
+    backends.set("piper", "http://other:29320", None)
     assert slot._engine() is not first
     backends.reset("piper")
     assert slot._engine() is None
@@ -163,8 +163,8 @@ async def test_probe_voices_checks_health_then_the_token(monkeypatch):
         return httpx.Response(200, json={"voices": ["a", "b"]} if request.url.path == "/v1/voices" else {"status": "ok"})
 
     remote(monkeypatch, handler)
-    assert await probe_voices("http://p:9150", "tok") == "Connected, token accepted, 2 voice(s)."
+    assert await probe_voices("http://p:29320", "tok") == "Connected, token accepted, 2 voice(s)."
     assert seen == [("/health", None), ("/v1/voices", "tok")]
     remote(monkeypatch, lambda request: httpx.Response(200, json={"status": "ok"}))
     with pytest.raises(Exception, match="not a speech model service"):
-        await probe_voices("http://p:9150", "tok")
+        await probe_voices("http://p:29320", "tok")

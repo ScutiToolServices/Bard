@@ -1,5 +1,5 @@
 @echo off
-REM Starts the Bard Service on port 8090 (syncs .venv with uv on each run).
+REM Starts the Bard Service on port 29400 (syncs .venv with uv on each run).
 REM LABEL: Bard Service
 REM DESCRIPTION: Text to speech MCP tool server (Piper or Paradee) for Citadel and Ember.
 cd /d "%~dp0"

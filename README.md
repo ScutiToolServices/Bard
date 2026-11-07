@@ -26,14 +26,14 @@ Bard runs no speech engine itself. Connect a `TTS_Piper_Model` and/or a `TTS_Par
 2. Start a `TTS_Piper_Model` (and optionally `TTS_Paradee_Model`) service and make a token for Bard on its admin page; its projects list must include every voice Bard offers.
 3. Copy `.env.example` to `.env` and set `INTERNAL_API_TOKEN` to the value Armory and ember_api use.
 4. `run.bat run` (loads `.env`; `uv run python -m src.run --dotenv` does the same), then start Armory (it connects to Bard at startup, so Bard goes first).
-5. Register it in Armory's `configs/config_extensions.json` (see `config_extensions.json.example`, entry `bard`) and set `bard_url` in ember_api's `configs/config_app.json` if Bard is not on `http://127.0.0.1:8090`.
+5. Register it in Armory's `configs/config_extensions.json` (see `config_extensions.json.example`, entry `bard`) and set `bard_url` in ember_api's `configs/config_app.json` if Bard is not on `http://127.0.0.1:29400`.
 
 ## Configuration
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `INTERNAL_API_TOKEN` | empty | Shared token for `/mcp` and `/api/*`. Required when `BARD_HOST` is not loopback. |
-| `BARD_HOST` / `BARD_PORT` | `127.0.0.1` / `8090` | Listen address. |
+| `BARD_HOST` / `BARD_PORT` | `127.0.0.1` / `29400` | Listen address. |
 | `BARD_VOICE` | `en_US-lessac-medium` | Default voice. |
 | `BARD_MAX_CHARS` | `5000` | Longest text accepted after Markdown is stripped. |
 | `BARD_TTL_HOURS` | `24` | How long audio is kept. |

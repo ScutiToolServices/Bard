@@ -39,7 +39,7 @@ Create `.env` (deploy option 2 copies yours, or `cp .env.example .env` and edit)
 
 ```bash
 docker compose up -d --build
-curl http://127.0.0.1:8090/health
+curl http://127.0.0.1:29400/health
 ```
 
 Then open `/admin/`, save a connection to the TTS_Piper_Model (and optionally TTS_Paradee_Model) service under **Model services**, and press **Test connection**.

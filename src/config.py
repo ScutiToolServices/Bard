@@ -16,7 +16,7 @@ LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 @dataclass(frozen=True)
 class Settings:
     host: str = "127.0.0.1"
-    port: int = 8090
+    port: int = 29400
     internal_token: str = ""
     data_dir: Path = PROJECT_DIR / ".data"
     config_dir: Path | None = None  # set when the data folder was moved: the folder that keeps settings.json
@@ -53,7 +53,7 @@ def _from_environment() -> Settings:
     voice = env("BARD_VOICE") or DEFAULT_VOICE
     return Settings(
         host=env("BARD_HOST", "127.0.0.1"),
-        port=int(env("BARD_PORT", "8090")),
+        port=int(env("BARD_PORT", "29400")),
         internal_token=env("INTERNAL_API_TOKEN", ""),
         data_dir=Path(env("BARD_DATA_DIR") or PROJECT_DIR / ".data"),
         voice=voice,

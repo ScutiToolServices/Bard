@@ -3,9 +3,9 @@ import pytest
 from src.config import Settings, load_settings
 
 
-def test_defaults_are_loopback_on_port_8090():
+def test_defaults_are_loopback_on_port_29400():
     settings = Settings()
-    assert (settings.host, settings.port) == ("127.0.0.1", 8090)
+    assert (settings.host, settings.port) == ("127.0.0.1", 29400)
     assert settings.voice == "en_US-lessac-medium"
 
 

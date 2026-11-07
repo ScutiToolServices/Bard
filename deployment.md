@@ -1,6 +1,6 @@
 # Deploying Bard
 
-Bard is one HTTP and MCP service (text to speech) on port 8090. It runs no model itself: it needs a TTS_Piper_Model (and optionally TTS_Paradee_Model) connection saved on its admin page.
+Bard is one HTTP and MCP service (text to speech) on port 29400. It runs no model itself: it needs a TTS_Piper_Model (and optionally TTS_Paradee_Model) connection saved on its admin page.
 
 ## Ways to run it
 

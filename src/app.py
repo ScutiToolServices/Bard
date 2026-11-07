@@ -61,7 +61,7 @@ class SpeakIn(BaseModel):
 
 CONNECT = {
     "host": "bard",
-    "port": 8090,
+    "port": 29400,
     "paths": [
         {
             "label": "MCP, for Armory",
@@ -195,9 +195,9 @@ def build_app(
         register(mcp, connect=CONNECT, service="Bard", admin_password=base.admin_password, usage=usage, backends=backends, status=status,
                  playground=PLAYGROUND, slots=[
             Slot("piper", "Piper", "Text to speech with Piper: the address of a TTS_Piper_Model service. Its token's projects list must include every voice Bard offers.",
-                 probe_voices, "http://127.0.0.1:9150", local=False),
+                 probe_voices, "http://127.0.0.1:29320", local=False),
             Slot("paradee", "Paradee", "Text to speech with Paradee's four voices: the address of a TTS_Paradee_Model service.",
-                 probe_voices, "http://127.0.0.1:9160", local=False),
+                 probe_voices, "http://127.0.0.1:29321", local=False),
         ])
 
         @mcp.custom_route("/admin/settings", methods=["GET", "PUT"])
