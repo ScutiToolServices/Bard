@@ -14,5 +14,5 @@ COPY web ./web
 RUN uv sync --frozen --no-dev --no-editable
 
 EXPOSE 8090
-# No speech engine runs here: save a TTSPiperModel / TTSParadeeModel connection on the admin page.
+# No speech engine runs here: save a TTS_Piper_Model / TTS_Paradee_Model connection on the admin page.
 CMD ["python", "-m", "src.run"]

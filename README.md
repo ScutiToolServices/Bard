@@ -1,6 +1,6 @@
 # Bard
 
-Text to speech for Ember. A TTSPiperModel or TTSParadeeModel service synthesizes the voice, ffmpeg encodes MP3, and Armory proxies the tools as the `bard` extension. Ember plays the result in chat through `GET /api/bard/audio/{file_id}`.
+Text to speech for Ember. A TTS_Piper_Model or TTS_Paradee_Model service synthesizes the voice, ffmpeg encodes MP3, and Armory proxies the tools as the `bard` extension. Ember plays the result in chat through `GET /api/bard/audio/{file_id}`.
 
 ## Tools
 
@@ -11,11 +11,11 @@ Text to speech for Ember. A TTSPiperModel or TTSParadeeModel service synthesizes
 
 ## Engines
 
-Bard runs no speech engine itself. Connect a `TTSPiperModel` and/or a `TTSParadeeModel` service on the admin page first; until one is connected the voice list is empty and speaking fails. Both sit behind one list: the `voice` of each request picks the service, and the list holds the Piper voices the token may use plus Paradee's four when its service is connected.
+Bard runs no speech engine itself. Connect a `TTS_Piper_Model` and/or a `TTS_Paradee_Model` service on the admin page first; until one is connected the voice list is empty and speaking fails. Both sit behind one list: the `voice` of each request picks the service, and the list holds the Piper voices the token may use plus Paradee's four when its service is connected.
 
 | | Piper | Paradee |
 | --- | --- | --- |
-| Voices | Any voice installed on the TTSPiperModel service. | Four fixed voices in one 8.5 MB model: `af_heart` (default), `bf_isabella`, `am_puck`, `bm_fable`. |
+| Voices | Any voice installed on the TTS_Piper_Model service. | Four fixed voices in one 8.5 MB model: `af_heart` (default), `bf_isabella`, `am_puck`, `bm_fable`. |
 | Measured here | About 24x real time, 280 MB. | About 36x real time, 600 MB. |
 
 `BARD_VOICE` is the default voice (a Piper voice unless you name a Paradee one). Voice names differ between the engines, so cached audio from one engine is never served for the other. 
@@ -23,7 +23,7 @@ Bard runs no speech engine itself. Connect a `TTSPiperModel` and/or a `TTSParade
 ## Setup
 
 1. `uv sync` (`winget install astral-sh.uv` first if uv is missing)
-2. Start a `TTSPiperModel` (and optionally `TTSParadeeModel`) service and make a token for Bard on its admin page; its projects list must include every voice Bard offers.
+2. Start a `TTS_Piper_Model` (and optionally `TTS_Paradee_Model`) service and make a token for Bard on its admin page; its projects list must include every voice Bard offers.
 3. Copy `.env.example` to `.env` and set `INTERNAL_API_TOKEN` to the value Armory and ember_api use.
 4. `run.bat run` (loads `.env`; `uv run python -m src.run --dotenv` does the same), then start Armory (it connects to Bard at startup, so Bard goes first).
 5. Register it in Armory's `configs/config_extensions.json` (see `config_extensions.json.example`, entry `bard`) and set `bard_url` in ember_api's `configs/config_app.json` if Bard is not on `http://127.0.0.1:8090`.
@@ -64,7 +64,7 @@ With `BARD_ADMIN_PASSWORD` set, `/admin/` (header `X-Admin-Password`) has four p
 
 - **Status**: what the service runs and for how long, plus the default voice and how many voices are installed.
 - **Usage**: calls, errors and average time per user since the service started (kept in memory, so a restart clears it).
-- **Model services**: Piper and Paradee each run at a `TTSPiperModel` / `TTSParadeeModel` address (address and token are saved on the admin page only; Bard has no local engine). Pick a saved connection or **Another address**, set the address and token, press **Test connection** (it calls the other service with that token), then **Save**. A change applies to the next call; the token is stored in `.data/backends.json`, never shown again, and `Use the environment value` drops the saved one (back to not connected).
+- **Model services**: Piper and Paradee each run at a `TTS_Piper_Model` / `TTS_Paradee_Model` address (address and token are saved on the admin page only; Bard has no local engine). Pick a saved connection or **Another address**, set the address and token, press **Test connection** (it calls the other service with that token), then **Save**. A change applies to the next call; the token is stored in `.data/backends.json`, never shown again, and `Use the environment value` drops the saved one (back to not connected).
 - **Settings**: the options saved in `.data/settings.json`.
 
 ## Try it from the admin page

@@ -5,7 +5,7 @@ Run Bard directly with Python: one process, no load balancer, listening on `127.
 ## Requirements
 
 - Windows with uv (`winget install astral-sh.uv`) and ffmpeg.
-- A running TTSPiperModel (and optionally TTSParadeeModel) service and a token for Bard made on its `/admin/` page.
+- A running TTS_Piper_Model (and optionally TTS_Paradee_Model) service and a token for Bard made on its `/admin/` page.
 
 ## Start
 
@@ -24,7 +24,7 @@ uv run python -m src.run
 curl http://127.0.0.1:8090/health
 ```
 
-Then open `/admin/`, save a connection to the TTSPiperModel (and optionally TTSParadeeModel) service under **Model services**, and press **Test connection**.
+Then open `/admin/`, save a connection to the TTS_Piper_Model (and optionally TTS_Paradee_Model) service under **Model services**, and press **Test connection**.
 
 ## Stop
 

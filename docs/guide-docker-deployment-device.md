@@ -5,7 +5,7 @@ Run Bard on a separate always-on machine (default `lex@scutiserver1.local`, fold
 ## Requirements on the machine
 
 - Docker with Compose v2.
-- A running TTSPiperModel (and optionally TTSParadeeModel) service and a token for Bard made on its `/admin/` page.
+- A running TTS_Piper_Model (and optionally TTS_Paradee_Model) service and a token for Bard made on its `/admin/` page.
 - The external `citadel_core` network, so Armory and ember_api can reach Bard.
 - ssh access (root over ssh is refused; use the normal user).
 
@@ -42,7 +42,7 @@ docker compose up -d --build
 curl http://127.0.0.1:8090/health
 ```
 
-Then open `/admin/`, save a connection to the TTSPiperModel (and optionally TTSParadeeModel) service under **Model services**, and press **Test connection**.
+Then open `/admin/`, save a connection to the TTS_Piper_Model (and optionally TTS_Paradee_Model) service under **Model services**, and press **Test connection**.
 
 ## Updating
 

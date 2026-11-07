@@ -1,4 +1,4 @@
-"""Text to MP3. The speech comes from a TTSPiperModel and a TTSParadeeModel service chosen on the admin page;
+"""Text to MP3. The speech comes from a TTS_Piper_Model and a TTS_Paradee_Model service chosen on the admin page;
 ffmpeg (WAV to MP3) runs here as an asyncio subprocess."""
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ async def encode_mp3(wav: bytes, ffmpeg: str) -> bytes:
 
 
 class HttpTtsEngine:
-    """A TTSPiperModel or TTSParadeeModel service (AI/ModelServices): `POST /v1/speak`
+    """A TTS_Piper_Model or TTS_Paradee_Model service (AI/ModelServices): `POST /v1/speak`
     returns WAV, `GET /v1/voices` lists the voices the token may use. ffmpeg stays here (WAV to MP3).
     Needs a token when the service has an admin password; the token's "projects" list limits the voices.
 
@@ -128,7 +128,7 @@ class SlotEngine:
 
 
 async def probe_voices(url: str, token: str) -> str:
-    """The admin page's Test button for a TTSPiperModel / TTSParadeeModel address: reachable, then token accepted."""
+    """The admin page's Test button for a TTS_Piper_Model / TTS_Paradee_Model address: reachable, then token accepted."""
     await check(url, "", "/health")
     reply = await check(url, token, "/v1/voices")
     try:

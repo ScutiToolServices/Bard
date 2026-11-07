@@ -194,9 +194,9 @@ def build_app(
     if config is not None:
         register(mcp, connect=CONNECT, service="Bard", admin_password=base.admin_password, usage=usage, backends=backends, status=status,
                  playground=PLAYGROUND, slots=[
-            Slot("piper", "Piper", "Text to speech with Piper: the address of a TTSPiperModel service. Its token's projects list must include every voice Bard offers.",
+            Slot("piper", "Piper", "Text to speech with Piper: the address of a TTS_Piper_Model service. Its token's projects list must include every voice Bard offers.",
                  probe_voices, "http://127.0.0.1:9150", local=False),
-            Slot("paradee", "Paradee", "Text to speech with Paradee's four voices: the address of a TTSParadeeModel service.",
+            Slot("paradee", "Paradee", "Text to speech with Paradee's four voices: the address of a TTS_Paradee_Model service.",
                  probe_voices, "http://127.0.0.1:9160", local=False),
         ])
 
