@@ -31,7 +31,7 @@ def file_id(settings):
 
 def test_health_needs_no_token(client):
     response = client.get("/health")
-    assert response.status_code == 200 and response.json() == {"ok": True}
+    assert response.status_code == 200 and response.json() == {"ok": True, "ready": False}
 
 
 def test_files_require_the_internal_token(client, file_id):

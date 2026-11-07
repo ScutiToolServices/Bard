@@ -59,6 +59,39 @@ class SpeakIn(BaseModel):
     voice: str | None = None
 
 
+CONNECT = {
+    "host": "bard",
+    "port": 8090,
+    "paths": [
+        {
+            "label": "MCP, for Armory",
+            "method": "POST",
+            "path": "/mcp"
+        },
+        {
+            "label": "Speak",
+            "method": "POST",
+            "path": "/api/speak"
+        },
+        {
+            "label": "Voices",
+            "method": "GET",
+            "path": "/api/voices"
+        },
+        {
+            "label": "Audio file",
+            "method": "GET",
+            "path": "/api/files/{file_id}"
+        },
+        {
+            "label": "Health, no token",
+            "method": "GET",
+            "path": "/health"
+        }
+    ]
+}
+
+
 def build_app(
     settings: Settings,
     engine: TtsEngine | None = None,
@@ -102,7 +135,7 @@ def build_app(
 
     @mcp.custom_route("/health", methods=["GET"])
     async def health(request: Request) -> Response:
-        return JSONResponse({"ok": True})
+        return JSONResponse({"ok": True, "ready": bool(backends.get("piper") or backends.get("paradee"))})
 
     @mcp.custom_route("/api/files/{file_id}", methods=["GET"])
     async def audio(request: Request) -> Response:
@@ -159,7 +192,7 @@ def build_app(
         return [{"label": "Default voice", "value": settings.voice}, {"label": "Voices", "value": voices}, *where]
 
     if config is not None:
-        register(mcp, service="Bard", admin_password=base.admin_password, usage=usage, backends=backends, status=status,
+        register(mcp, connect=CONNECT, service="Bard", admin_password=base.admin_password, usage=usage, backends=backends, status=status,
                  playground=PLAYGROUND, slots=[
             Slot("piper", "Piper", "Text to speech with Piper: the address of a TTSPiperModel service. Its token's projects list must include every voice Bard offers.",
                  probe_voices, "http://127.0.0.1:9150", local=False),

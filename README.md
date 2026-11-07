@@ -73,3 +73,8 @@ With `BARD_ADMIN_PASSWORD` set, `/admin/` (header `X-Admin-Password`) has four p
 Open `/admin/` and use **Try it** with the service's internal API token and a requester username. The token is held only in memory, separate from admin sign-in. Requests use the ordinary public API, quotas and cache; the panel shows HTTP status, latency, output, cancellation and curl with a token placeholder. See [the web UI guide](docs/guide-web-ui.md).
 
 Enter the requester username that will own the generated audio, choose an installed voice and enter text. `POST /api/speak` returns a file ID; the panel fetches `GET /api/files/{file_id}` with the same token and username and displays its MP3 with playback controls and a download. Voice choices come from `GET /api/voices`. This exercises the same text preparation, quotas, cache and engine selection as ordinary clients. Generated audio follows the normal retention policy.
+
+## Documentation
+
+- [Deployment](deployment.md)
+- [Changelog](CHANGELOG.md)

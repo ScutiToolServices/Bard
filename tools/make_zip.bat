@@ -6,7 +6,7 @@ for %%I in ("%~dp0..") do set "ROOT=%%~fI"
 py -3 "%~dp0make_zip.py" || python "%~dp0make_zip.py" || (echo ZIP creation failed. & pause & exit /b 1)
 set /p VER=<"%ROOT%\VERSION"
 start "" explorer /select,"%ROOT%\zip_versions\Bard-%VER%.zip"
-start "" "https://github.com/scutiii2/Bard/releases/new?tag=v%VER%"
+start "" "https://github.com/ScutiToolServices/Bard/releases/new?tag=v%VER%"
 echo.
 echo Drag zip_versions\Bard-%VER%.zip onto the release page, paste the notes, and publish.
 pause
