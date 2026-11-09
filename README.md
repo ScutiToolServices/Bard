@@ -24,7 +24,7 @@ Bard runs no speech engine itself. Connect a `TTS_Piper_Model` and/or a `TTS_Par
 
 1. `uv sync` (`winget install astral-sh.uv` first if uv is missing)
 2. Start a `TTS_Piper_Model` (and optionally `TTS_Paradee_Model`) service and make a token for Bard on its admin page; its projects list must include every voice Bard offers.
-3. Copy `.env.example` to `.env` and set `SERVICE_ADMIN_PASSWORD`. After Bard starts, open `/admin/` and make a token for Armory on the **Tokens** card.
+3. Copy `.env.example` to `.env` and set `SERVICE_ADMIN_PASSWORD`. After Bard starts, open `/admin/` and make a token for Armory on **Access tokens**.
 4. `run.bat run` (loads `.env`; `uv run python -m src.run --dotenv` does the same), then start Armory (it connects to Bard at startup, so Bard goes first).
 5. Register it in Armory's `configs/config_extensions.json` (see `config_extensions.json.example`, entry `bard`) and set `bard_url` in ember_api's `configs/config_app.json` if Bard is not on `http://127.0.0.1:29400`.
 
@@ -59,16 +59,15 @@ A plain publish (`run.bat`, Deploy, option 1) only updates the `live` branch, so
 
 ## Admin page
 
-With `SERVICE_ADMIN_PASSWORD` set, `/admin/` (header `X-Admin-Password`) has four parts:
+With `SERVICE_ADMIN_PASSWORD` set, open `/admin/` and sign in. The shared sidebar has **Overview**, **Playground**, **Access tokens**, **Model connections**, **Runtime & settings**, **Usage** and **Connect & API**. Each page has a direct URL hash. The sidebar collapses to an icon rail and remembers its display preference in this browser.
 
-- **Status**: what the service runs and for how long, plus the default voice and how many voices are installed.
-- **Usage**: calls, errors and average time per user since the service started (kept in memory, so a restart clears it).
-- **Model services**: Piper and Paradee each run at a `TTS_Piper_Model` / `TTS_Paradee_Model` address (address and token are saved on the admin page only; Bard has no local engine). Pick a saved connection or **Another address**, set the address and token, press **Test connection** (it calls the other service with that token), then **Save**. A change applies to the next call; the token is stored in `.data/backends.json`, never shown again, and `Use the environment value` drops the saved one (back to not connected).
-- **Settings**: the options saved in `.data/settings.json`.
+Piper and Paradee slots call TTS_Piper_Model and TTS_Paradee_Model. Overview reports the default voice and available voice count. Bard holds no speech model.
+
+Overview reads `/health` and the service status. Usage shows calls, errors and average time per requester, and resets on restart. Model connections keeps slot test/save/reset and reusable named connections. Runtime & settings saves options and marks those needing a restart. Access tokens creates and revokes caller tokens; Connect & API lists addresses and endpoints with Copy buttons. Admin authentication remains separate from public request tokens. See [the web UI guide](docs/guide-web-ui.md).
 
 ## Try it from the admin page
 
-Open `/admin/` and use **Try it** with a token from the **Tokens** card and a requester username. The token is held only in memory, separate from admin sign-in. Requests use the ordinary public API, quotas and cache; the panel shows HTTP status, latency, output, cancellation and curl with a token placeholder. See [the web UI guide](docs/guide-web-ui.md).
+Open `/admin/#playground` and use **Playground** with a token from **Access tokens** and a requester username. The token is held only in memory, separate from admin sign-in. Requests use the ordinary public API, quotas and cache; the panel shows HTTP status, latency, output, cancellation and curl with a token placeholder. See [the web UI guide](docs/guide-web-ui.md).
 
 Enter the requester username that will own the generated audio, choose an installed voice and enter text. `POST /api/speak` returns a file ID; the panel fetches `GET /api/files/{file_id}` with the same token and username and displays its MP3 with playback controls and a download. Voice choices come from `GET /api/voices`. This exercises the same text preparation, quotas, cache and engine selection as ordinary clients. Generated audio follows the normal retention policy.
 
