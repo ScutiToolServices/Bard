@@ -2,8 +2,6 @@
 
 **Kind:** text → MP3 file
 
-**Group:** Text-to-Speech
-
 **Tags:** `cpu`, `mcp`, `http`, `ffmpeg`
 
 | | |
