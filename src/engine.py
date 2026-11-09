@@ -150,7 +150,16 @@ class MultiEngine:
         return self._paradee if voice in PARADEE_VOICES else self._piper
 
     def voices(self) -> list[str]:
-        return self._piper.voices() + self._paradee.voices()
+        """One model being down must not hide the other's voices; fail only when every connected model is unreachable."""
+        found, failure = [], None
+        for engine in (self._piper, self._paradee):
+            try:
+                found += engine.voices()
+            except EngineFailed as error:
+                failure = error
+        if failure is not None and not found:
+            raise failure
+        return found
 
     async def synthesize(self, text: str, voice: str) -> Synthesis:
         return await self._owner(voice).synthesize(text, voice)

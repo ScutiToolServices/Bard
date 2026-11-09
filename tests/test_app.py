@@ -103,7 +103,7 @@ def test_speak_default_and_validation(client):
 def test_voices_lists_only_installed_without_a_default(client):
     response = client.get("/api/voices", headers=ANN)
     assert response.status_code == 200
-    assert response.json() == {"voices": ["v1", "v2"]}
+    assert response.json() == {"voices": ["v1", "v2"], "models": {"piper": ["v1", "v2"], "paradee": []}}
 
 
 @pytest.fixture
@@ -160,3 +160,15 @@ def test_the_admin_page_shows_status_usage_and_the_piper_and_paradee_slots(admin
     client.put("/admin/backends/piper", headers=pw, json={"url": "http://piper:29320", "token": "t"})
     assert {"label": "Piper", "value": "model service"} in client.get("/admin/status", headers=pw).json()["items"]
 
+
+
+def test_voices_answers_503_when_the_model_service_is_unreachable(client, monkeypatch):
+    from src.errors import EngineFailed
+    from src.service import BardService
+
+    async def failing(self):
+        raise EngineFailed("The speech service could not be reached.")
+
+    monkeypatch.setattr(BardService, "list_voices", failing)
+    response = client.get("/api/voices", headers=ANN)
+    assert response.status_code == 503 and response.json()["error"] == "engine_failed"

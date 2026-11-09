@@ -19,7 +19,7 @@ from starlette.routing import Mount
 from starlette.staticfiles import StaticFiles
 
 from src.admin_api import Slot, Usage, register
-from src.config import PROJECT_DIR, Settings
+from src.config import PARADEE_VOICES, PROJECT_DIR, Settings
 from src.contract import SpeakResult, VoiceList
 from src.engine import TtsEngine, build_engine, make_backends, probe_voices
 from src.errors import BardError, EngineFailed, IdentityRequired, QuotaExceeded
@@ -181,8 +181,13 @@ def build_app(
         """Only installed voices; clients choose a voice explicitly on each run."""
         if not request.headers.get("x-requester-username", "").strip():
             return JSONResponse({"error": "identity_required"}, status_code=401)
-        result = await service.list_voices()
-        return JSONResponse({"voices": result.voices})
+        try:
+            result = await service.list_voices()
+        except BardError as error:
+            return JSONResponse({"error": error.code, "message": str(error)}, status_code=503 if isinstance(error, EngineFailed) else 400)
+        paradee = [v for v in result.voices if v in PARADEE_VOICES]
+        models = {"piper": [v for v in result.voices if v not in PARADEE_VOICES], "paradee": paradee}  # which model owns each voice
+        return JSONResponse({"voices": result.voices, "models": models})
 
     async def status() -> list[dict[str, str]]:
         try:
