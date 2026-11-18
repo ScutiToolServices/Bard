@@ -59,7 +59,7 @@ A plain publish (`run.bat`, Deploy, option 1) only updates the `live` branch, so
 
 ## Admin page
 
-With `SERVICE_ADMIN_PASSWORD` set, open `/admin/` and sign in. The shared sidebar has **Overview**, **Playground**, **Access tokens**, **Model connections**, **Runtime & settings**, **Usage** and **Connect & API**. Each page has a direct URL hash. The sidebar collapses to an icon rail and remembers its display preference in this browser.
+With `SERVICE_ADMIN_PASSWORD` set, open `/admin/` and sign in. The service tabs include **Overview**, **Playground**, **Access tokens**, **Model connections**, **Runtime & settings**, **Usage** and **Connections**. Each tab has a direct URL hash.
 
 Piper and Paradee slots call TTS_Piper_Model and TTS_Paradee_Model. Overview reports the default voice and available voice count. Bard holds no speech model.
 
