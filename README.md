@@ -1,6 +1,6 @@
 # Bard
 
-Text to speech for Ember. Piper or Paradee (`BARD_ENGINE`) synthesizes an English voice on the CPU, ffmpeg encodes MP3, and Armory proxies the tools as the `bard` extension. Ember plays the result in chat through `GET /api/bard/audio/{file_id}`.
+Text to speech for Ember. A TTS_Piper_Model or TTS_Paradee_Model service synthesizes the voice, ffmpeg encodes MP3, and Armory proxies the tools as the `bard` extension. Ember plays the result in chat through `GET /api/bard/audio/{file_id}`.
 
 ## Tools
 
@@ -11,39 +11,34 @@ Text to speech for Ember. Piper or Paradee (`BARD_ENGINE`) synthesizes an Englis
 
 ## Engines
 
-With `BARD_ENGINE=paradee` (and the `paradee` extra installed) Bard serves Paradee alone, so `tool_bard_listVoices` and Ember's voice menu list only its four voices. With `piper` both engines run in the Bard process and are chosen per request: the `voice` picks the engine, and the list holds Piper voices plus Paradee's four when the extra is installed.
+Bard runs no speech engine itself. Connect a `TTS_Piper_Model` and/or a `TTS_Paradee_Model` service on the admin page first; until one is connected the voice list is empty and speaking fails. Both sit behind one list: the `voice` of each request picks the service, and the list holds the Piper voices the token may use plus Paradee's four when its service is connected.
 
-| | `piper` (default) | `paradee` |
+| | Piper | Paradee |
 | --- | --- | --- |
-| Voices | Any Piper voice, installed on the host with `python -m piper.download_voices`. | Four fixed voices in one 8.5 MB model: `af_heart` (default), `bf_isabella`, `am_puck`, `bm_fable`. |
+| Voices | Any voice installed on the TTS_Piper_Model service. | Four fixed voices in one 8.5 MB model: `af_heart` (default), `bf_isabella`, `am_puck`, `bm_fable`. |
 | Measured here | About 24x real time, 280 MB. | About 36x real time, 600 MB. |
 
-`BARD_VOICE` must name a voice of the chosen engine; Bard refuses to start when a Paradee setup names a Piper voice. Voice names differ between the engines, so cached audio from one engine is never served for the other. For Docker set `BARD_ENGINE=paradee` in `.env`: the build then installs the extra dependencies (the image is about 2.4 GB, against 1.5 GB for Piper).
+`SERVICE_VOICE` is the default voice (a Piper voice unless you name a Paradee one). Voice names differ between the engines, so cached audio from one engine is never served for the other. 
 
 ## Setup
 
 1. `uv sync` (`winget install astral-sh.uv` first if uv is missing)
-2. Piper only: download the voice: `uv run python -m piper.download_voices en_US-lessac-medium --download-dir .data/voices`. For Paradee run `uv sync --extra paradee` instead and set `BARD_ENGINE=paradee`.
-3. Copy `.env.example` to `.env` and set `INTERNAL_API_TOKEN` to the value Armory and ember_api use.
-4. `uv run python -m src.run`, then start Armory (it connects to Bard at startup, so Bard goes first).
-5. Register it in Armory's `configs/config_extensions.json` (see `config_extensions.json.example`, entry `bard`) and set `bard_url` in ember_api's `configs/config_app.json` if Bard is not on `http://127.0.0.1:8090`.
+2. Start a `TTS_Piper_Model` (and optionally `TTS_Paradee_Model`) service and make a token for Bard on its admin page; its projects list must include every voice Bard offers.
+3. Copy `.env.example` to `.env` and set `SERVICE_ADMIN_PASSWORD`. After Bard starts, open `/admin/` and make a token for Armory on **Access tokens**.
+4. `run.bat run` (loads `.env`; `uv run python -m src.run --dotenv` does the same), then start Armory (it connects to Bard at startup, so Bard goes first).
+5. Register it in Armory's `configs/config_extensions.json` (see `config_extensions.json.example`, entry `bard`) and set `bard_url` in ember_api's `configs/config_app.json` if Bard is not on `http://127.0.0.1:29400`.
 
 ## Configuration
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `INTERNAL_API_TOKEN` | empty | Shared token for `/mcp` and `/api/*`. Required when `BARD_HOST` is not loopback. |
-| `BARD_HOST` / `BARD_PORT` | `127.0.0.1` / `8090` | Listen address. |
-| `BARD_DATA_DIR` | `.data` | Holds `voices/` and `audio/` (both gitignored). |
-| `BARD_ENGINE` | `piper` | `piper` or `paradee`; see Engines. |
-| `BARD_VOICE` | `en_US-lessac-medium` (`af_heart` for Paradee) | Default voice. |
-| `BARD_MAX_CHARS` | `5000` | Longest text accepted after Markdown is stripped. |
-| `BARD_TTL_HOURS` | `24` | How long audio is kept. |
-| `BARD_QUOTA_MB` | `200` | Audio storage per user. |
-| `BARD_MAX_CONCURRENT` | `1` | Simultaneous syntheses. |
-| `BARD_FFMPEG` | `ffmpeg` | ffmpeg executable. |
-| `BARD_PIPER_URL` / `BARD_PIPER_TOKEN` | empty | Use the `TTSPiperModel` service at this URL (sent `X-Internal-Token`) instead of running Piper in Bard. Voices then come from the service's `GET /v1/voices`; nothing is read from `.data/voices`. |
-| `BARD_PARADEE_URL` / `BARD_PARADEE_TOKEN` | empty | The same for `TTSParadeeModel`. The `paradee` extra is not needed then. |
+| `SERVICE_HOST` / `SERVICE_PORT` | `127.0.0.1` / `29400` | Listen address. |
+| `SERVICE_VOICE` | `en_US-lessac-medium` | Default voice. |
+| `SERVICE_MAX_CHARS` | `5000` | Longest text accepted after Markdown is stripped. |
+| `SERVICE_TTL_HOURS` | `24` | How long audio is kept. |
+| `SERVICE_QUOTA_MB` | `200` | Audio storage per user. |
+| `SERVICE_MAX_CONCURRENT` | `1` | Simultaneous syntheses. |
+| `SERVICE_FFMPEG` | `ffmpeg` | ffmpeg executable. |
 
 ## Notes
 
@@ -52,21 +47,35 @@ With `BARD_ENGINE=paradee` (and the `paradee` extra installed) Bard serves Parad
 
 ## HTTP speech for Ember
 
-`POST /api/speak` accepts JSON `{text, voice?}` and returns `{file_id, duration_s, voice}` through `BardService.speak`. Markdown cleanup, the 5,000 cleaned-character cap, owner cache, quota and synthesis semaphore all apply. `GET /api/voices` returns `{voices: string[]}` containing installed voices only. Both require `X-Requester-Username` and the configured internal token, just like `/api/files/{file_id}`. Invalid text/voice is 400, quota is 413 and synthesis failure is 503.
+`POST /api/speak` accepts JSON `{text, voice?}` and returns `{file_id, duration_s, voice}` through `BardService.speak`. Markdown cleanup, the 5,000 cleaned-character cap, owner cache, quota and synthesis semaphore all apply. `GET /api/voices` returns `{voices: string[]}` containing installed voices only. Both require `X-Requester-Username` and a token from the admin page, just like `/api/files/{file_id}`. Invalid text/voice is 400, quota is 413 and synthesis failure is 503.
 
 Ember proxies these routes with `tools.execute` and `files.download`. Its Read aloud action asks for a voice on every run, strips Markdown, batches at 3,500 characters and synthesizes one batch ahead during playback. Stop aborts pending browser requests and playback; already completed audio retains the existing owner and TTL rules. Agent-triggered audio cards and all MCP tools keep their existing behavior.
 
 ### Releasing
 
-A plain publish (`tools\deploy.bat` option 1) only updates the `live` branch, so it is fine for test deploys. A release is a separate step: set `VERSION` (and `pyproject.toml` where it has a version, to the same number), commit, then run `tools\deploy.bat` option R or `py tools\publish_live.py --release`. That publishes to `live` and tags the `main` commit `vX.Y.Z` and the live commit `live-vX.Y.Z`. A version already released with different live files is refused, so bump `VERSION`. While a version is not officially released yet, add `--replace` to move its tags.
+A plain publish (`run.bat`, Deploy, option 1) only updates the `live` branch, so it is fine for test deploys. A release is a separate step: set `VERSION` (and `pyproject.toml` where it has a version, to the same number), commit, then run `run.bat`, Deploy, option R or `py tools\publish_live.py --release`. That publishes to `live` and tags the `main` commit `vX.Y.Z` and the live commit `live-vX.Y.Z`. A version already released with different live files is refused, so bump `VERSION`. While a version is not officially released yet, add `--replace` to move its tags.
 
-`tools\make_zip.bat` then builds `zip_versions\Bard-<VERSION>.zip` (no `tools/`, no git-ignored files, no older ZIPs; `.env.example` is included) and opens GitHub's new-release page for the tag.
+`run.bat`, Build the release ZIP, then builds `_zip_versions\Bard-<VERSION>.zip` (no `tools/`, no git-ignored files, no older ZIPs; `.env.example` is included) and opens GitHub's new-release page for the tag.
 
 ## Admin page
 
-With `BARD_ADMIN_PASSWORD` set, `/admin/` (header `X-Admin-Password`) has four parts:
+With `SERVICE_ADMIN_PASSWORD` set, open `/admin/` and sign in. The shared sidebar has **Overview**, **Playground**, **Access tokens**, **Model connections**, **Runtime & settings**, **Usage** and **Connect & API**. Each page has a direct URL hash. The sidebar collapses to an icon rail and remembers its display preference in this browser.
 
-- **Status**: what the service runs and for how long, plus the default voice and how many voices are installed.
-- **Usage**: calls, errors and average time per user since the service started (kept in memory, so a restart clears it).
-- **Model services**: Piper and Paradee each run in Bard or at a `TTSPiperModel` / `TTSParadeeModel` address (`BARD_PIPER_URL`, `BARD_PIPER_TOKEN`, `BARD_PARADEE_URL`, `BARD_PARADEE_TOKEN` are only the starting values). Pick **In this service** or **A model service**, set the address and token, press **Test connection** (it calls the other service with that token), then **Save**. A change applies to the next call; the token is stored in `.data/backends.json`, never shown again, and `Use the environment value` drops the saved one.
-- **Settings**: the options saved in `.data/settings.json`.
+Piper and Paradee slots call TTS_Piper_Model and TTS_Paradee_Model. Overview reports the default voice and available voice count. Bard holds no speech model.
+
+Overview reads `/health` and the service status. Usage shows calls, errors and average time per requester, and resets on restart. Model connections keeps slot test/save/reset and reusable named connections. Runtime & settings saves options and marks those needing a restart. Access tokens creates and revokes caller tokens; Connect & API lists addresses and endpoints with Copy buttons. Admin authentication remains separate from public request tokens. See [the web UI guide](docs/guide-web-ui.md).
+
+## Try it from the admin page
+
+Open `/admin/#playground` and use **Playground** with a token from **Access tokens** and a requester username. The token is held only in memory, separate from admin sign-in. Requests use the ordinary public API, quotas and cache; the panel shows HTTP status, latency, output, cancellation and curl with a token placeholder. See [the web UI guide](docs/guide-web-ui.md).
+
+Enter the requester username that will own the generated audio, choose an installed voice and enter text. `POST /api/speak` returns a file ID; the panel fetches `GET /api/files/{file_id}` with the same token and username and displays its MP3 with playback controls and a download. Voice choices come from `GET /api/voices`. This exercises the same text preparation, quotas, cache and engine selection as ordinary clients. Generated audio follows the normal retention policy.
+
+## Documentation
+
+- [Purpose: input, output and what it is for](docs/purpose.md)
+- [Deployment](deployment.md)
+- [Changelog](CHANGELOG.md)
+- [Docker on this PC](docs/guide-docker-same-device.md)
+- [Docker on another machine](docs/guide-docker-deployment-device.md)
+- [Run without Docker](docs/guide-no-docker-same-device.md)

@@ -19,12 +19,13 @@ from starlette.routing import Mount
 from starlette.staticfiles import StaticFiles
 
 from src.admin_api import Slot, Usage, register
-from src.config import PROJECT_DIR, Settings
+from src.config import PARADEE_VOICES, PROJECT_DIR, Settings
 from src.contract import SpeakResult, VoiceList
 from src.engine import TtsEngine, build_engine, make_backends, probe_voices
 from src.errors import BardError, EngineFailed, IdentityRequired, QuotaExceeded
 from src.identity import owner_from_context
-from src.middleware import InternalTokenMiddleware
+from src.middleware import TokenMiddleware
+from src.tokens import TokenStore
 from src.options import live, make_config
 from src.runtime import Config
 from src.service import BardService
@@ -36,7 +37,20 @@ INSTRUCTIONS = (
 )
 
 
-WEB_DIR = Path(os.environ.get("BARD_WEB_DIR") or PROJECT_DIR / "web")
+WEB_DIR = Path(os.environ.get("SERVICE_WEB_DIR") or PROJECT_DIR / "web")
+
+# Public client requests retain the ordinary internal-token and owner checks.
+PLAYGROUND = {"operations": [{
+    "label": "Speak", "route": "/api/speak", "method": "POST", "encoding": "json", "response": "json",
+    "fields": [
+        {"key": "X-Requester-Username", "label": "Requester username", "type": "text", "location": "header",
+         "required": True, "default": "playground"},
+        {"key": "text", "label": "Text", "type": "textarea", "required": True, "default": "Hello from Bard."},
+        {"key": "voice", "label": "Voice", "type": "select", "options": []},
+    ],
+    "lookup": {"route": "/api/voices", "key": "voices", "field": "voice"},
+    "followup": {"route": "/api/files/{file_id}", "method": "GET", "response": "audio"},
+}]}
 
 
 class SpeakIn(BaseModel):
@@ -46,16 +60,50 @@ class SpeakIn(BaseModel):
     voice: str | None = None
 
 
+CONNECT = {
+    "host": "bard",
+    "port": 29400,
+    "paths": [
+        {
+            "label": "MCP, for Armory",
+            "method": "POST",
+            "path": "/mcp"
+        },
+        {
+            "label": "Speak",
+            "method": "POST",
+            "path": "/api/speak"
+        },
+        {
+            "label": "Voices",
+            "method": "GET",
+            "path": "/api/voices"
+        },
+        {
+            "label": "Audio file",
+            "method": "GET",
+            "path": "/api/files/{file_id}"
+        },
+        {
+            "label": "Health, no token",
+            "method": "GET",
+            "path": "/health"
+        }
+    ]
+}
+
+
 def build_app(
     settings: Settings,
     engine: TtsEngine | None = None,
     config: Config | None = None,
 ) -> Starlette:
-    """`config` (default: from BARD_ADMIN_PASSWORD, see options.make_config) makes the options in options.py
+    """`config` (default: from SERVICE_ADMIN_PASSWORD, see options.make_config) makes the options in options.py
     changeable on /admin/ while running; without it they stay as the environment set them."""
     config = config if config is not None else make_config(settings)
     base, settings = settings, live(settings, config)
     backends = make_backends(base)
+    tokens = TokenStore(base.state_dir / "tokens.json", "bard_")
     usage = Usage()
     engine = engine or build_engine(base, backends)
     store = AudioStore(base.audio_dir, lambda: settings.ttl_seconds, lambda: settings.quota_bytes)
@@ -89,7 +137,7 @@ def build_app(
 
     @mcp.custom_route("/health", methods=["GET"])
     async def health(request: Request) -> Response:
-        return JSONResponse({"ok": True})
+        return JSONResponse({"ok": True, "ready": bool(backends.get("piper") or backends.get("paradee"))})
 
     @mcp.custom_route("/api/files/{file_id}", methods=["GET"])
     async def audio(request: Request) -> Response:
@@ -133,8 +181,13 @@ def build_app(
         """Only installed voices; clients choose a voice explicitly on each run."""
         if not request.headers.get("x-requester-username", "").strip():
             return JSONResponse({"error": "identity_required"}, status_code=401)
-        result = await service.list_voices()
-        return JSONResponse({"voices": result.voices})
+        try:
+            result = await service.list_voices()
+        except BardError as error:
+            return JSONResponse({"error": error.code, "message": str(error)}, status_code=503 if isinstance(error, EngineFailed) else 400)
+        paradee = [v for v in result.voices if v in PARADEE_VOICES]
+        models = {"piper": [v for v in result.voices if v not in PARADEE_VOICES], "paradee": paradee}  # which model owns each voice
+        return JSONResponse({"voices": result.voices, "models": models})
 
     async def status() -> list[dict[str, str]]:
         try:
@@ -142,15 +195,16 @@ def build_app(
         except BardError:
             voices = "unavailable (a model service cannot be reached)"
         modes = [("Piper", "piper"), ("Paradee", "paradee")]
-        where = [{"label": label, "value": "model service" if backends.get(key) else "in this process"} for label, key in modes]
+        where = [{"label": label, "value": "model service" if backends.get(key) else "not connected"} for label, key in modes]
         return [{"label": "Default voice", "value": settings.voice}, {"label": "Voices", "value": voices}, *where]
 
     if config is not None:
-        register(mcp, service="Bard", admin_password=base.admin_password, usage=usage, backends=backends, status=status, slots=[
-            Slot("piper", "Piper", "Text to speech with Piper. Local runs the piper-tts library inside Bard (voices in .data/voices); "
-                 "a model service is a TTSPiperModel address.", probe_voices, "http://127.0.0.1:9150"),
-            Slot("paradee", "Paradee", "Text to speech with Paradee's four voices. Local needs the paradee extra installed; "
-                 "a model service is a TTSParadeeModel address.", probe_voices, "http://127.0.0.1:9160"),
+        register(mcp, connect=CONNECT, service="Bard", admin_password=base.admin_password, usage=usage, backends=backends, tokens=tokens, status=status,
+                 playground=PLAYGROUND, slots=[
+            Slot("piper", "Piper", "Text to speech with Piper: the address of a TTS_Piper_Model service. Its token's projects list must include every voice Bard offers.",
+                 probe_voices, "http://127.0.0.1:29320", local=False),
+            Slot("paradee", "Paradee", "Text to speech with Paradee's four voices: the address of a TTS_Paradee_Model service.",
+                 probe_voices, "http://127.0.0.1:29321", local=False),
         ])
 
         @mcp.custom_route("/admin/settings", methods=["GET", "PUT"])
@@ -177,5 +231,5 @@ def build_app(
     app = mcp.streamable_http_app()
     if config is not None and WEB_DIR.is_dir():
         app.router.routes.append(Mount("/admin", StaticFiles(directory=WEB_DIR, html=True)))
-    app.add_middleware(InternalTokenMiddleware, token=settings.internal_token)
+    app.add_middleware(TokenMiddleware, tokens=tokens if base.admin_password else None)
     return app

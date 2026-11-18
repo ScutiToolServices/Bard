@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
-from dotenv import load_dotenv
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -15,17 +16,11 @@ LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 @dataclass(frozen=True)
 class Settings:
     host: str = "127.0.0.1"
-    port: int = 8090
-    internal_token: str = ""
+    port: int = 29400
     data_dir: Path = PROJECT_DIR / ".data"
-    engine: str = "piper"  # "piper" or "paradee"
+    config_dir: Path | None = None  # set when the data folder was moved: the folder that keeps settings.json
     voice: str = "en_US-lessac-medium"
     ffmpeg: str = "ffmpeg"
-    # Empty = run Piper / Paradee in this process. Set = call that model service (AI/ModelServices) with its token.
-    piper_url: str = ""
-    piper_token: str = ""
-    paradee_url: str = ""
-    paradee_token: str = ""
     max_chars: int = 5000
     ttl_seconds: int = 24 * 3600
     quota_bytes: int = 200 * 1024 * 1024
@@ -34,48 +29,64 @@ class Settings:
     admin_password: str = ""
 
     @property
-    def voices_dir(self) -> Path:
-        return self.data_dir / "voices"
+    def state_dir(self) -> Path:
+        """Where settings.json and backends.json live: the first data folder, even after the data folder was moved."""
+        return self.config_dir or self.data_dir
 
     @property
     def audio_dir(self) -> Path:
         return self.data_dir / "audio"
 
     @property
-    def exposed_without_token(self) -> bool:
-        """Listening beyond loopback with no token lets anything that can reach the port call every tool."""
-        return not self.internal_token and self.host not in LOOPBACK_HOSTS
+    def exposed_without_auth(self) -> bool:
+        """Listening beyond loopback with no admin password means no tokens, so anything that can reach the port could call every tool."""
+        return not self.admin_password.strip() and self.host not in LOOPBACK_HOSTS
 
 
-ENGINES = ("piper", "paradee")
 PARADEE_VOICES = ("af_heart", "bf_isabella", "am_puck", "bm_fable")  # the four voices of Paradee 1.2
-DEFAULT_VOICES = {"piper": "en_US-lessac-medium", "paradee": "af_heart"}
+DEFAULT_VOICE = "en_US-lessac-medium"  # a Piper voice; the voice of each request picks Piper or Paradee
+
+
+def _from_environment() -> Settings:
+    env = os.environ.get
+    voice = env("SERVICE_VOICE") or DEFAULT_VOICE
+    return Settings(
+        host=env("SERVICE_HOST", "127.0.0.1"),
+        port=int(env("SERVICE_PORT", "29400")),
+                data_dir=Path(env("SERVICE_DATA_DIR") or PROJECT_DIR / ".data"),
+        voice=voice,
+        ffmpeg=env("SERVICE_FFMPEG", "ffmpeg"),
+        max_chars=int(env("SERVICE_MAX_CHARS", "5000")),
+        ttl_seconds=int(env("SERVICE_TTL_HOURS", "24")) * 3600,
+        quota_bytes=int(env("SERVICE_QUOTA_MB", "200")) * 1024 * 1024,
+        max_concurrent=int(env("SERVICE_MAX_CONCURRENT", "1")),
+        admin_password=env("SERVICE_ADMIN_PASSWORD", ""),
+    )
+
+
+def with_saved_data_path(settings: Settings) -> Settings:
+    """The admin page's "Data folder" setting moves stored data (audio, uploads, voices, results) to another folder.
+    It is read once, here at start. Settings and saved model connections stay in the first folder, which is where this
+    value is saved. A folder that cannot be written is ignored."""
+    try:
+        saved = json.loads((settings.data_dir / "settings.json").read_text("utf-8")).get("data_path")
+    except (OSError, ValueError, AttributeError):
+        return settings
+    if not isinstance(saved, str) or not saved.strip():
+        return settings
+    target = Path(saved.strip()).expanduser()
+    if not target.is_absolute():
+        target = PROJECT_DIR / target
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+        probe = target / ".write-test"
+        probe.write_text("x")
+        probe.unlink()
+    except OSError:
+        logging.getLogger(__name__).warning("Data folder %s cannot be written; using %s", target, settings.data_dir)
+        return settings
+    return replace(settings, data_dir=target, config_dir=settings.data_dir)
 
 
 def load_settings() -> Settings:
-    load_dotenv(PROJECT_DIR / ".env")
-    env = os.environ.get
-    engine = env("BARD_ENGINE", "piper").strip().lower()
-    if engine not in ENGINES:
-        raise ValueError(f"BARD_ENGINE must be one of {', '.join(ENGINES)}, not {engine!r}")
-    voice = env("BARD_VOICE") or DEFAULT_VOICES[engine]
-    if engine == "paradee" and voice not in PARADEE_VOICES:
-        raise ValueError(f"BARD_VOICE {voice!r} is not a Paradee voice; use one of {', '.join(PARADEE_VOICES)}")
-    return Settings(
-        host=env("BARD_HOST", "127.0.0.1"),
-        port=int(env("BARD_PORT", "8090")),
-        internal_token=env("INTERNAL_API_TOKEN", ""),
-        data_dir=Path(env("BARD_DATA_DIR") or PROJECT_DIR / ".data"),
-        engine=engine,
-        voice=voice,
-        ffmpeg=env("BARD_FFMPEG", "ffmpeg"),
-        piper_url=env("BARD_PIPER_URL", ""),
-        piper_token=env("BARD_PIPER_TOKEN", ""),
-        paradee_url=env("BARD_PARADEE_URL", ""),
-        paradee_token=env("BARD_PARADEE_TOKEN", ""),
-        max_chars=int(env("BARD_MAX_CHARS", "5000")),
-        ttl_seconds=int(env("BARD_TTL_HOURS", "24")) * 3600,
-        quota_bytes=int(env("BARD_QUOTA_MB", "200")) * 1024 * 1024,
-        max_concurrent=int(env("BARD_MAX_CONCURRENT", "1")),
-        admin_password=env("BARD_ADMIN_PASSWORD", ""),
-    )
+    return with_saved_data_path(_from_environment())
