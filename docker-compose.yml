@@ -6,6 +6,7 @@ name: bard
 
 services:
   bard:
+    extra_hosts: ["host.docker.internal:host-gateway"]  # reaches services published on the host
     build: .
     restart: unless-stopped
     environment:
